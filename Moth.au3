@@ -1,0 +1,1850 @@
+﻿#pragma compile(Out, ..\MothPortable\Moth.exe)
+#pragma compile(Icon, ..\MothPortable\themes\Moth.ico)
+#pragma compile(LegalCopyright, © SANILA)
+#pragma compile(Comments, Program made by SANILA)
+
+#NoTrayIcon
+#RequireAdmin
+
+#include <FileOperations.au3>
+#include <GUIConstants.au3>
+#include <GUIConstantsEx.au3>
+#include <GuiImageList.au3>
+#include <GuiListView.au3>
+#include <ListviewConstants.au3>
+#include <Misc.au3>
+#include <WinAPI.au3>
+#include <WindowsConstants.au3>
+
+#include <Include\GUIDarkMode.au3>
+#include <Include\ImageGetInfo.au3>
+
+#include <Common\ExplorerIcon.au3>
+#include <Common\MothCommon.au3>
+
+; Константы для оптимизации
+Global Const $GUI_UPDATE_INTERVAL = 250 ; Интервал обновления GUI в мс
+Global Const $INITIAL_ARRAY_SIZE = 1000 ; Начальный размер массива файлов
+
+; Оптимизированный массив файлов
+Global $aFileListData[$INITIAL_ARRAY_SIZE][6]
+Global $g_iCurrentFileCount = 0
+
+; Включаем режим OnEvent, в этом режиме события вызывают пользовательскую функцию
+Opt("GUIOnEventMode", 1)
+
+
+If @OSArch = 'X86' Then
+	MsgBox(48, $sAppName, 'Поддерживаются только 64-битные ОС.' & @CR & 'Приложение будет закрыто.')
+	Exit
+EndIf
+
+; Проверка на множественный запуск
+_CheckSingleInstance()
+
+Global Const $STATUS_NOT_SUPPORTED = -1
+Global Const $STATUS_SAVE_ERROR = -2
+Global Const $STATUS_SKIPPED_FOLDER = -3
+Global Const $STATUS_SKIPPED = 0
+
+Global $bShowLog = False
+
+Global $nProcCount = 1
+If EnvGet("NUMBER_OF_PROCESSORS") > 0 Then $nProcCount = EnvGet("NUMBER_OF_PROCESSORS")
+
+Global $sGlobalLogs = '', $nLogDirSize, $ProcessPid, $aDropList, $sAllWinnerSize = 0, $sAllFileSize = 0, _
+		$hGui, $hListView, $nInx = 1, $nCurrProgressMaxValue
+
+Global $Timer, $Secs, $Mins, $Hour, $bTimerState = True, $hImageIcons
+Global $nGuiWidth = 527, $nGuiHeight = 167, $nItemFileColumnWidth, $isComplete = False
+Global $nLastUpdatedIndex = 0 ; Индекс последнего успешно обновленного элемента
+
+Global $bStarting = False
+
+Global $aIconMap[0][2]
+
+If Not FileExists($sImgPath) Then DirCreate($sImgPath)
+
+$hGui = GUICreate($sAppName, $nGuiWidth, $nGuiHeight, 0, 0, $WS_CAPTION + $WS_THICKFRAME, $WS_EX_ACCEPTFILES)
+
+; Создадим ListView
+$hListView = GUICtrlCreateListView("", 6, 2, $nGuiWidth - 13, 122, _
+		BitOR($LVS_NOSORTHEADER, $LVS_SINGLESEL, $LVS_REPORT), _
+		BitOR($LVS_EX_INFOTIP, $LVS_EX_FULLROWSELECT))
+GUICtrlSetResizing($hListView, $GUI_DOCKBORDERS)
+GUICtrlSetState($hListView, $GUI_DROPACCEPTED)
+
+Global $aListviewColumNames = ["Файл", "Размер", "Новый", "Процент", "Сжатие", "Задача"]
+_GUICtrlListView_InsertColumn($hListView, 0, $aListviewColumNames[0], 172)
+_GUICtrlListView_InsertColumn($hListView, 1, $aListviewColumNames[1], 70, $LVCFMT_RIGHT)
+_GUICtrlListView_InsertColumn($hListView, 2, $aListviewColumNames[2], 70)
+_GUICtrlListView_InsertColumn($hListView, 3, $aListviewColumNames[3], 65, $LVCFMT_RIGHT)
+_GUICtrlListView_InsertColumn($hListView, 4, $aListviewColumNames[4], 65)
+_GUICtrlListView_InsertColumn($hListView, 5, $aListviewColumNames[5], 65)
+
+$hImageIcons = _GUIImageList_Create(16, 16, 5, 3)
+_GUICtrlListView_SetImageList($hListView, $hImageIcons, 1)
+
+; Контекстное меню ListView
+$DummyMenu = GUICtrlCreateDummy()
+$ContextMenu = GUICtrlCreateContextMenu($DummyMenu)
+$ContextMenuItem1 = GUICtrlCreateMenuItem("Показать в проводнике", $ContextMenu)
+$ContextMenuItem2 = GUICtrlCreateMenuItem("Копировать как путь", $ContextMenu)
+GUICtrlSetOnEvent($ContextMenuItem1, "_OnEventContextMenuItem1")
+GUICtrlSetOnEvent($ContextMenuItem2, "_OnEventContextMenuItem2")
+
+;~ $hGraphic = GUICtrlCreateLabel('', 0, 2 + 124, $nGuiWidth, 40)
+;~ GUICtrlSetState($hGraphic, $GUI_DISABLE)
+;~ GUICtrlSetResizing($hGraphic, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+
+$hGraphic = GUICtrlCreateLabel('', 0, 1, $nGuiWidth, 124)
+GUICtrlSetState($hGraphic, $GUI_DISABLE)
+GUICtrlSetResizing($hGraphic, $GUI_DOCKBORDERS)
+
+$hProgress = GUICtrlCreateProgress(6, 125, $nGuiWidth - 13, 5)
+GUICtrlSetResizing($hProgress, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+
+$Info = GUICtrlCreateLabel('', 10, 142, $nGuiWidth - 110, 17, $SS_LEFT)
+GUICtrlSetResizing($Info, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+;~ GUICtrlSetBkColor(-1, 0x191919)
+
+$hOkButton = GUICtrlCreateButton("OK (10)", $nGuiWidth - 68, 137, 60, 22)
+GUICtrlSetResizing($hOkButton, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
+GUICtrlSetState($hOkButton, $GUI_DISABLE)
+GUICtrlSetOnEvent($hOkButton, "_OnEventOkButton")
+
+;~ $Icon = GUICtrlCreateIcon('', -1, 398, 137, 16, 16)
+;~ GUICtrlSetResizing(-1, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
+;~ GUICtrlSetTip(-1, 'Open Settings')
+;~ GUICtrlSetCursor(-1, 0)
+;~ GUICtrlSetImage(-1, _GetThemePath() & '\gear.ico')
+;~ GUICtrlSetOnEvent(-1, "_OnEventSettingsButton")
+
+;~ $hSettingsButton = GUICtrlCreateButton(" ", 356, 134, 22, 22)
+;~ GUICtrlSetResizing($hSettingsButton, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
+;~ GUICtrlSetOnEvent($hSettingsButton, "_OnEventSettingsButton")
+;~ GUICtrlSetImage($hSettingsButton, _GetThemePath() & '\gear.ico')
+
+
+$hDropDummy = GUICtrlCreateDummy()
+GUICtrlSetOnEvent($hDropDummy, "_OnEventDropped")
+
+GUISetOnEvent($GUI_EVENT_CLOSE, "_OnEventClose")
+GUISetOnEvent($GUI_EVENT_PRIMARYDOWN, "_OnEventClickDown")
+GUISetOnEvent($GUI_EVENT_SECONDARYDOWN, "_OnEventClickDown")
+GUIRegisterMsg($WM_DROPFILES, "_OnEvent_DROPFILES")
+
+; Функция WM_GETMINMAXINFO выполняется при перемещении окна, сворачивании и изменении размеров.
+; Позволяет установить пределы увеличения и уменьшения окна, как по горизонтали, так и по вертикали индивидуально.
+; А также позицию и размеры развёрнутого состояния. Установочные параметры можно игнорировать указав только необходимые параметры
+GUIRegisterMsg($WM_GETMINMAXINFO, "_OnEvent_GETMINMAXINFO")
+
+;~ GUIRegisterMsg($WM_WINDOWPOSCHANGING, "_OnEvent_SIZE")
+
+_SetPositionOnDesktop()
+
+AdlibRegister("_CheckFileListUpdate", 200)
+
+GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
+
+
+; if dark theme enabled for apps in windows settings, set dark theme to gui
+If _IsDarkTheme() == True Then
+
+	_GUISetDarkTheme($hGui)
+	_GUICtrlAllSetDarkTheme($hGui)
+
+;~ 	; Фон гуишки
+;~ 	GUISetBkColor(0x2a2a2a, $hGui)
+;~ 	; цвет текста
+;~ 	GUICtrlSetColor($Info, 0xffffff)
+;~ 	; Цвет таблицы
+	_GUICtrlListView_SetBkColor($hListView, 0x202020)
+	_GUICtrlListView_SetTextBkColor($hListView, 0x202020)
+;~ 	_GUICtrlListView_SetTextColor($hListView, 0xffffff)
+;~ 	; Цвет подложки, которая ниже ListView
+;~ 	GUICtrlSetBkColor($hGraphic, 0x202020)
+	; Цвет подложки под таблицу
+	GUICtrlSetBkColor($hGraphic, 0x202020)
+;~ 	; Кнопка ОК
+;~ 	GUICtrlSetBkColor($hOkButton, 0x2a2a2a)
+;~ 	GUICtrlSetColor($hOkButton, 0xffffff)
+;~ 	; Кнопка Настройки
+;~ 	GUICtrlSetBkColor($hSettingsButton, 0x2a2a2a)
+;~ 	GUICtrlSetColor($hSettingsButton, 0xffffff)
+;~ 	; Цвет фона текста
+;~ 	GUICtrlSetBkColor($hProgress, 0x202020)
+;~ 	GUICtrlSetBkColor($Info, 0x202020)
+
+Else
+;~ 	; Фон гуишки
+;~ 	GUISetBkColor(0xffffff, $hGui)
+;~ 	; Цвет подложки, которая ниже ListView
+	GUICtrlSetBkColor($hGraphic, 0xffffff)
+;~ 	; Цвет фона текста
+;~ 	GUICtrlSetBkColor($hProgress, 0xf0f0f0)
+;~ 	GUICtrlSetBkColor($Info, 0xf0f0f0)
+
+EndIf
+
+While 1
+	Sleep(100)
+WEnd
+
+
+Func _OnEventClose()
+	ProcessClose($ProcessPid)
+	DirRemove($sLogPathDir, 1)
+	DirRemove($sImgPath, 1)
+
+	If $bShowLog = True Then
+		$sLogPathFile = $sTmpPath & '\' & @HOUR & @MIN & @SEC & @MSEC & '.txt'
+		FileWriteLine($sLogPathFile, $sGlobalLogs)
+		ShellExecute($sLogPathFile)
+	EndIf
+
+	Exit
+EndFunc   ;==>_OnEventClose
+
+
+Func _SetPositionOnDesktop()
+	Local $aPosGui, $tRect, $nGuiX, $nGuiY, $nMargin = 6
+	$aPosGui = WinGetPos($hGui)
+	$tRect = _WinAPI_GetWorkArea()
+	$nGuiX = DllStructGetData($tRect, 'Right') - $nMargin - $aPosGui[2]
+	$nGuiY = DllStructGetData($tRect, 'Bottom') - $nMargin - $aPosGui[3]
+	WinMove($hGui, "", $nGuiX, $nGuiY)
+EndFunc   ;==>_SetPositionOnDesktop
+
+
+Func _OnEvent_DROPFILES($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $hWnd, $iMsg, $lParam
+	Local $iSize, $pFileName
+	; Get number of files dropped
+	Local $aRet = DllCall("shell32.dll", "int", "DragQueryFileW", "hwnd", $wParam, "int", 0xFFFFFFFF, "ptr", 0, "int", 0)
+	; Reset array to correct size
+	Dim $aDropList[$aRet[0] + 1] = [$aRet[0]]
+	; And add item names
+	For $i = 0 To $aRet[0] - 1
+		$aRet = DllCall("shell32.dll", "int", "DragQueryFileW", "hwnd", $wParam, "int", $i, "ptr", 0, "int", 0)
+		$iSize = $aRet[0] + 1
+		$pFileName = DllStructCreate("wchar[" & $iSize & "]")
+		DllCall("shell32.dll", "int", "DragQueryFileW", "hwnd", $wParam, "int", $i, "ptr", DllStructGetPtr($pFileName), "int", $iSize)
+		$aDropList[$i + 1] = DllStructGetData($pFileName, 1)
+		$pFileName = 0
+	Next
+	; Send the count to trigger the drop function in the main loop
+	GUICtrlSendToDummy($hDropDummy, $aDropList[0])
+EndFunc   ;==>_OnEvent_DROPFILES
+
+
+Func _OnEventDropped()
+	Local $sActionName = '', $aActionList
+
+	$aActionList = _IniString_ReadSection($sMothINI, 'Action.DragAndDrop')
+	If @error Then Return
+
+	For $i = 1 To $aActionList[0][0]
+		; Пропустим, если значение не равно единице
+		If $aActionList[$i][1] <> 1 Then ContinueLoop
+		; Пропустим, если название команды не соответствует шаблону
+		If StringLeft($aActionList[$i][0], 5) <> 'Moth.' Then ContinueLoop
+		; Moth.CompressionLossless
+		$sActionName = $aActionList[$i][0]
+	Next
+
+	If $sActionName = '' Then
+		MsgBox(48, $sAppName, 'Действие при перетаскивании отсутствует в настройках или не корректно настроено')
+		Return
+	EndIf
+
+	For $i = 1 To $aDropList[0]
+		_AddToFileListData($aDropList[$i], $sActionName, 'Action.DragAndDrop ' & @HOUR & ':' & @MIN & ':' & @SEC)
+	Next
+
+EndFunc   ;==>_OnEventDropped
+
+
+
+Func WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
+	#forceref $hWnd, $iMsg, $iwParam
+
+	Local $hDCBrush = _WinAPI_GetStockObject($DC_BRUSH)
+	Local $hDCPen = _WinAPI_GetStockObject($DC_PEN)
+	Local $tagNMCUSTOMDRAW = "struct;" & $tagNMHDR & ";dword dwDrawStage;handle hdc;" & _
+			$tagRECT & ";dword_ptr dwItemSpec;uint uItemState;lparam lItemlParam;endstruct"
+	Local $iLastCol
+	Local $iIndex
+
+	Local $tNMHDR = DllStructCreate($tagNMHDR, $ilParam)
+	Local $hWndFrom = HWnd(DllStructGetData($tNMHDR, "hWndFrom"))
+	Local $iCode = DllStructGetData($tNMHDR, "Code")
+	Local $hWndListView = IsHWnd($hListView) ? $hListView : GUICtrlGetHandle($hListView)
+	Local $hHeader = _GUICtrlListView_GetHeader($hWndListView)
+
+	Switch $hWndFrom
+		Case $hHeader
+			If $iCode = $NM_CUSTOMDRAW Then
+				Local $tNMCD = DllStructCreate($tagNMCUSTOMDRAW, $ilParam)
+				Local $dwStage = DllStructGetData($tNMCD, "dwDrawStage")
+
+				Switch $dwStage
+					Case $CDDS_PREPAINT
+						$iLastCol = _GUICtrlHeader_GetItemCount($hHeader) - 2
+						Return $CDRF_NOTIFYITEMDRAW
+
+					Case $CDDS_ITEMPREPAINT
+						$iIndex = DllStructGetData($tNMCD, "dwItemSpec")
+						Local $hDC = DllStructGetData($tNMCD, "hdc")
+						Local $tRect = DllStructCreate($tagRECT)
+						For $i = 0 To 3
+							DllStructSetData($tRect, $i + 1, DllStructGetData($tNMCD, 6 + $i))
+						Next
+
+						_WinAPI_SelectObject($hDC, $hDCBrush)
+						_WinAPI_SelectObject($hDC, $hDCPen)
+						_WinAPI_SetBkMode($hDC, 1)
+
+						If _IsDarkTheme() Then
+							_WinAPI_SetDCBrushColor($hDC, 0x191919)
+							_WinAPI_SetDCPenColor($hDC, 0x191919)
+							_WinAPI_Rectangle($hDC, $tRect)
+							_WinAPI_SetDCPenColor($hDC, 0x434343)
+							_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor(0xFDFDFD))
+						Else
+							_WinAPI_SetDCPenColor($hDC, 0xE5E5E5)
+						EndIf
+
+						If $iIndex <= $iLastCol Then
+							_WinAPI_DrawLine($hDC, $tRect.Right - 2, $tRect.Top + 1, $tRect.Right - 2, $tRect.Bottom)
+						EndIf
+
+						If $iIndex = 1 Or $iIndex = 3 Then
+							$tRect.Right -= 9
+							_WinAPI_DrawText($hDC, $aListviewColumNames[$iIndex], $tRect, $DT_SINGLELINE + $DT_VCENTER + $DT_RIGHT)
+						Else
+							$tRect.Left += 6
+							_WinAPI_DrawText($hDC, $aListviewColumNames[$iIndex], $tRect, $DT_SINGLELINE + $DT_VCENTER)
+						EndIf
+
+						Return $CDRF_SKIPDEFAULT
+				EndSwitch
+			EndIf
+
+		Case $hWndListView
+			If $iCode = $NM_RCLICK Then
+				Local $tInfo = DllStructCreate($tagNMITEMACTIVATE, $ilParam)
+				$iIndex = DllStructGetData($tInfo, "Index")
+				If $iIndex <> -1 Then
+					; $iLast_LV_Index = $iIndex
+					ShowMenu($hWnd, $ContextMenu, $hListView, 1)
+				EndIf
+			EndIf
+	EndSwitch
+
+	Return $GUI_RUNDEFMSG
+EndFunc   ;==>WM_NOTIFY
+
+
+
+Func _OnEventContextMenuItem1()
+	Local $iInx, $sImgPath, $sImgName
+;~ 	MsgBox(4160, "Информация", "Индексы выделенных: " & _GUICtrlListView_GetSelectedIndices($hListView))
+
+	$iInx = _GUICtrlListView_GetSelectedIndices($hListView) + 1
+	$sImgPath = $aFileListData[$iInx][1]
+	$sImgName = _GetFileName($sImgPath)
+	Local $aList[1] = [$sImgName] ; массив с файлом, который будем выделять
+	_WinAPI_ShellOpenFolderAndSelectItems(StringTrimRight($sImgPath, StringLen($sImgName)), $aList, 0)
+
+EndFunc   ;==>_OnEventContextMenuItem1
+
+
+Func _OnEventContextMenuItem2()
+	Local $iInx, $sImgPath
+
+	$iInx = _GUICtrlListView_GetSelectedIndices($hListView) + 1
+	$sImgPath = $aFileListData[$iInx][1]
+	ClipPut($sImgPath)
+
+EndFunc   ;==>_OnEventContextMenuItem2
+
+
+Func _OnEventOkButton()
+	_OnEventClose()
+EndFunc   ;==>_OnEventOkButton
+
+
+Func _OnEventSettingsButton()
+	ShellExecute(@ScriptDir & '\Settings.exe')
+EndFunc   ;==>_OnEventSettingsButton
+
+Func _OnEventClickDown()
+	$bTimerState = False
+	GUICtrlSetData($hOkButton, "OK")
+EndFunc   ;==>_OnEventClickDown
+
+
+Func _CompressFile()
+	Local $sListLength = $aFileListData[0][0], _
+			$sPathFile, _
+			$sExtensionFile, _
+			$sFileSize, _
+			$sActionName, $sActionCommand, $sLogLine
+
+	If Not $sListLength Then Return
+
+	For $i = $nInx To $aFileListData[0][0]
+		; Чек, надо ли конвертить
+		If Not StringLen($aFileListData[$i][4]) Then ; 456 КБ|456 КБ|1 %|losless
+			$sPathFile = $aFileListData[$i][1] ; C:\Users\STEEL\Desktop\photo_2023-05-03_05-42-57.jpg
+			$sActionName = $aFileListData[$i][2] ; Moth.CompressionLossless
+			$sActionCommand = $aFileListData[$i][3] ; losless
+			$sExtensionFile = _GetFileExtension($sPathFile)
+			$sFileSize = FileGetSize($sPathFile)
+			$nInx = $i
+			_SetLabel('Прогресс')
+			$nCurrProgressMaxValue = Round($nInx / $aFileListData[0][0] * 100)
+			If $nInx > 1 Then
+				_SetProcess(Round(Int($nInx - 1) / $aFileListData[0][0] * 100))
+			EndIf
+
+			; Логирование
+			$sLogLine = _StringCompare($sActionCommand, 'loss') ? $sExtensionFile : $sActionCommand
+			_AddLogLine(@CR & StringFormat("%03s", $nInx) & ' ' & $sActionName & ' (' & $sLogLine & ')')
+			_AddLogLine('    ' & $sPathFile)
+
+			Switch $sActionCommand
+				Case 'loss' ; Сжатие без потерь
+					Switch $sExtensionFile
+						Case 'png'
+							_CompressionPng($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'webp'
+							_CompressionWebP($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'jpg', 'jpe', 'jpeg'
+							_CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'avif'
+							_CompressionAvif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'jfif'
+							_CompressionJfif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'gif'
+							_CompressionGif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'bmp'
+							_CompressionBmp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'heic'
+							_CompressionHeic($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case Else
+							_UpdateGUI()
+							_ShowResult($sPathFile, $sFileSize, _IsDir($sPathFile) ? -3 : -1)
+					EndSwitch
+				Case 'lossy' ; Сжатие с потерями
+					_CompressionLossy($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+				Case 'web' ; Сжатие для WEB
+					_CompressionForWeb($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+				Case 'toPng' ; -> png
+					_ConvertToPng($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+				Case 'toWebp' ; -> webp
+					_ConvertToWebp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+				Case 'toJpg' ; -> jpg
+					_ConvertToJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+				Case Else
+					If StringInStr($sActionCommand, 'cq') Then ; изменение палитры, например cq256
+						_ColorQuantization($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+					ElseIf StringInStr($sActionCommand, 'percent') Then ; percent50
+						_ResizePercent($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+					ElseIf StringInStr($sActionCommand, 'resize') Then ; resize1000x1000x0
+						_ResizePixel($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+					Else
+						_UpdateGUI()
+						_ShowResult($sPathFile, $sFileSize, _IsDir($sPathFile) ? -3 : -1)
+					EndIf
+			EndSwitch
+
+			; Логирование
+			If $nInx = $sListLength Then
+
+				_UpdateGUI()
+
+				$isComplete = True
+
+				_SetProcess(100)
+
+				_StartTimerState()
+
+				_SetLabel('Завершено')
+
+				;~ _ArrayDisplay($aFileListData)
+				;~ _ArrayDisplay($aIconMap)
+			EndIf
+		EndIf
+	Next
+
+EndFunc   ;==>_CompressFile
+
+Func _SetLabel($sLabel)
+	Local $nCompressingPrecent = _GetCompressingPrecent($sAllWinnerSize, $sAllFileSize)
+	Local $sFileSize = _GetFileSizeStr($sAllFileSize - $sAllWinnerSize)
+	GUICtrlSetData($Info, _
+			$sLabel & ': ' & $nInx & '/' & $aFileListData[0][0] & _
+			($nCompressingPrecent <> '' ? '    Сжатие: ' & $nCompressingPrecent : '') & _
+			($sFileSize <> '' ? '    Размер: -' & $sFileSize : ''))
+
+	If $sLabel = 'Завершено' Then
+		WinSetTitle($hGui, '', $sAppName & '  [100%]')
+	Else
+		WinSetTitle($hGui, '', $sAppName & '  [' & Round(Int($nInx - 1) / $aFileListData[0][0] * 100) & '%]')
+	EndIf
+
+EndFunc   ;==>_SetLabel
+
+Func _GetFileSize($sPathFile)
+	Local $sFileSize = FileGetSize($sPathFile)
+	Return _GetFileSizeStr($sFileSize)
+EndFunc   ;==>_GetFileSize
+
+Func _GetFilePatch($sPathFile)
+	Return StringStripWS($sPathFile, 3)
+EndFunc   ;==>_GetFilePatch
+
+Func _GetFileExtension($sPathFile)
+	Return StringRegExpReplace($sPathFile, '^.*\.', '')
+EndFunc   ;==>_GetFileExtension
+
+Func _GetFileName($sPathFile) ; Вернет имя вместе с расширением
+	Return StringRegExpReplace($sPathFile, '^.*\\', '')
+EndFunc   ;==>_GetFileName
+
+Func _GetFilePerePatch($sPathFile) ; Путь до файла, исключив его название и '/'
+	Return StringTrimRight($sPathFile, StringLen(StringRegExpReplace($sPathFile, '^.*\\', '')) + 1)
+EndFunc   ;==>_GetFilePerePatch
+
+Func _SetProcess($i)
+	GUICtrlSetData($hProgress, $i)
+EndFunc   ;==>_SetProcess
+
+Func _SetStepProcess($nStep)
+	Local $nCurrProgress = GUICtrlRead($hProgress)
+	If $nCurrProgress < Int($nCurrProgressMaxValue - 2) Then
+		GUICtrlSetData($hProgress, $nCurrProgress + $nStep)
+	EndIf
+EndFunc   ;==>_SetStepProcess
+
+
+Func _UpdateGUI()
+	If $isComplete Then Return
+
+	Static $lastUpdate = 0
+	If TimerDiff($lastUpdate) < $GUI_UPDATE_INTERVAL And Not ($nInx = $aFileListData[0][0]) Then Return
+	$lastUpdate = TimerInit()
+
+	Local $aLineSplit, $sPathFile, $sFileName
+	Local $sFileSizeCurrent, $sFileSizeNew, $sFileCompressingSize, $sFileCompressingPercent, $sPathFileStatus
+	Local $bNeedUpdate = False
+
+	If Not $aFileListData[$aFileListData[0][0]][5] Then
+		_GUICtrlListView_BeginUpdate($hListView)
+		$bNeedUpdate = True
+	EndIf
+
+	; Начинаем с последнего обновленного индекса
+	For $i = $nLastUpdatedIndex + 1 To $aFileListData[0][0]
+		$sPathFile = $aFileListData[$i][1]
+		$sFileName = ' ' & _GetFileName($sPathFile)
+		$aLineSplit = StringSplit($aFileListData[$i][4], "|")
+
+		If $aLineSplit[0] > 1 Then
+			$sFileSizeCurrent = $aLineSplit[1]
+			$sFileSizeNew = $aLineSplit[2]
+			$sFileCompressingPercent = $aLineSplit[3]
+			$sFileCompressingSize = $aLineSplit[4]
+			$sPathFileStatus = $aLineSplit[5]
+
+			; Обновляем индекс последнего обработанного элемента
+			$nLastUpdatedIndex = $i
+		Else
+			$sPathFileStatus = _GetActionStr($aFileListData[$i][2])
+			$sFileSizeCurrent = ""
+			$sFileSizeNew = ""
+			$sFileCompressingPercent = ""
+			$sFileCompressingSize = ""
+
+			If $aFileListData[$i][5] And $aFileListData[$aFileListData[0][0]][5] Then
+				ExitLoop
+			EndIf
+		EndIf
+
+		Local $listViewIndex = $i - 1
+
+		If Not $aFileListData[$i][5] Then
+			; Создадим строку таблицы, если еще не создана
+			$aFileListData[$i][5] = True
+			_GUICtrlListView_AddItem($hListView, $sFileName, _GetIconIndexByPathFile($sPathFile))
+			_GUICtrlListView_AddSubItem($hListView, $listViewIndex, $sFileSizeCurrent, 1)
+			_GUICtrlListView_AddSubItem($hListView, $listViewIndex, $sFileSizeNew, 2)
+			_GUICtrlListView_AddSubItem($hListView, $listViewIndex, $sFileCompressingPercent, 3)
+			_GUICtrlListView_AddSubItem($hListView, $listViewIndex, $sFileCompressingSize, 4)
+			_GUICtrlListView_AddSubItem($hListView, $listViewIndex, $sPathFileStatus, 5)
+		Else
+			_UpdateListViewItemIfChanged($listViewIndex, 1, $sFileSizeCurrent)
+			_UpdateListViewItemIfChanged($listViewIndex, 2, $sFileSizeNew)
+			_UpdateListViewItemIfChanged($listViewIndex, 3, $sFileCompressingPercent)
+			_UpdateListViewItemIfChanged($listViewIndex, 4, $sFileCompressingSize)
+			_UpdateListViewItemIfChanged($listViewIndex, 5, $sPathFileStatus)
+
+		EndIf
+
+	Next
+
+	If $bNeedUpdate Then
+		_GUICtrlListView_EndUpdate($hListView)
+		_ListViewResize()
+	EndIf
+EndFunc   ;==>_UpdateGUI
+
+
+Func _UpdateListViewItemIfChanged($iIndex, $iSubItem, $sNewText)
+	If _GUICtrlListView_GetItemText($hListView, $iIndex, $iSubItem) <> $sNewText Then
+		_GUICtrlListView_SetItemText($hListView, $iIndex, $sNewText, $iSubItem)
+	EndIf
+EndFunc   ;==>_UpdateListViewItemIfChanged
+
+
+;===============================================================================
+; Показать результат
+;===============================================================================
+; Параметры:
+;     $sPathFile - путь к обрабатываемому файлу
+;     $sFileSize - исходный размер файла
+;     $sWinnerSize - результирующий размер файла после сжатия
+;     Специальные значения $sWinnerSize:
+;         -1: формат не поддерживается
+;         -2: ошибка сохранения
+;         -3: пропуск папки
+;          0: пропуск (файл не изменился)
+;===============================================================================
+Func _ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+	Local $sActionName, $sActionCommand, $sCompressingSize, $sCompressingPrecent, $sPathFileStatus
+	Local $sParams = ''
+
+	; Проверяем, что путь файла соответствует текущему обрабатываемому элементу
+	If $aFileListData[$nInx][1] = $sPathFile Then
+		$sActionName = $aFileListData[$nInx][2] ; Название действия (например, Moth.CompressionLossless)
+		$sActionCommand = $aFileListData[$nInx][3] ; Команда действия (например, loss, lossy, web)
+
+		Switch $sWinnerSize
+			Case $STATUS_NOT_SUPPORTED ; -1
+				$sCompressingSize = ''
+				$sCompressingPrecent = 'не поддерживается'
+				$sWinnerSize = 0
+			Case $STATUS_SAVE_ERROR ; -2
+				$sCompressingSize = ''
+				$sCompressingPrecent = 'ошибка сохранения'
+				$sWinnerSize = $sFileSize
+			Case $STATUS_SKIPPED_FOLDER ; -3
+				$sCompressingSize = ''
+				$sCompressingPrecent = 'пропуск'
+				$sWinnerSize = 0
+			Case $STATUS_SKIPPED ; 0
+				$sCompressingSize = ''
+				$sCompressingPrecent = 'пропуск'
+				$sWinnerSize = $sFileSize
+			Case Else
+				; Вычисляем размер и процент сжатия
+				$sCompressingSize = _GetCompressingSize($sWinnerSize, $sFileSize)
+				$sCompressingPrecent = _GetCompressingPrecent($sWinnerSize, $sFileSize)
+
+				; Обновляем общую статистику только для определенных типов сжатия
+				If StringInStr($sActionCommand, 'cq') Or $sActionCommand = 'lossy' Or $sActionCommand = 'web' Or $sActionCommand = 'loss' Then
+					$sAllWinnerSize += $sWinnerSize
+					$sAllFileSize += $sFileSize
+				EndIf
+		EndSwitch
+
+		; Добавляем информацию в лог
+		_AddLogLine($sCompressingPrecent & ', ' & $sCompressingSize)
+
+		; Получаем статус операции для отображения
+		$sPathFileStatus = _GetActionStr($sActionName)
+
+		; Формируем строку параметров для обновления GUI
+		$sParams &= _GetFileSizeStr($sFileSize) ; Исходный размер
+		$sParams &= "|" & _GetFileSizeStr($sWinnerSize) ; Новый размер
+		$sParams &= "|" & $sCompressingPrecent ; Процент сжатия
+		$sParams &= "|" & $sCompressingSize ; Размер сжатия
+		$sParams &= "|" & $sPathFileStatus ; Статус операции
+		; Сохраняем результат дляпоследующего обновления GUI
+		$aFileListData[$nInx][4] = $sParams
+	EndIf
+EndFunc   ;==>_ShowResult
+
+
+Func _GetActionStr($sActionName)
+	Return _IniString_Read($sMothINI, $sActionName, 'ShortGuiTitle')
+;~ 	Return _IniString_Read($sMothINI, $sActionName, 'ContextMenuTitle')
+EndFunc   ;==>_GetActionStr
+
+
+Func _GetIconIndexByPathFile($sPathFile)
+	Local $sExtension = _IsDir($sPathFile) ? "folder" : _GetFileExtension($sPathFile)
+
+	For $i = 0 To UBound($aIconMap) - 1
+		If $aIconMap[$i][0] = $sExtension Then
+			Return $aIconMap[$i][1]
+		EndIf
+	Next
+
+	Local $aIconInfo = _FileGetIcon($sPathFile)
+	Local $nIndex = _GUIImageList_AddIcon($hImageIcons, $aIconInfo[1], $aIconInfo[2])
+	ReDim $aIconMap[$nIndex + 1][2]
+	$aIconMap[$nIndex][0] = $sExtension
+	$aIconMap[$nIndex][1] = $nIndex
+	Return $nIndex
+EndFunc   ;==>_GetIconIndexByPathFile
+
+
+Func _OnEvent_GETMINMAXINFO($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $iMsg, $wParam
+	If $hWnd = $hGui Then
+		Local $tMINMAXINFO = DllStructCreate("int;int;" & _
+				"int MaxSizeX; int MaxSizeY;" & _
+				"int MaxPositionX;int MaxPositionY;" & _
+				"int MinTrackSizeX; int MinTrackSizeY;" & _
+				"int MaxTrackSizeX; int MaxTrackSizeY", _
+				$lParam)
+		DllStructSetData($tMINMAXINFO, "MinTrackSizeX", 440) ; минимальные размеры окна
+		DllStructSetData($tMINMAXINFO, "MinTrackSizeY", 157) ; ровно на 3 строки в высоту
+
+		_ListViewResize()
+	EndIf
+	Return $GUI_RUNDEFMSG
+EndFunc   ;==>_OnEvent_GETMINMAXINFO
+
+
+
+Func _OnEvent_SIZE($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $hWnd, $iMsg, $wParam, $lParam
+	_ListViewResize()
+	Return $GUI_RUNDEFMSG
+EndFunc   ;==>_OnEvent_SIZE
+
+
+Func _ListViewResize()
+	Local $nCurrGuiWidth, $nCurrGuiHeight, $iListViewHeight
+
+	$iListViewHeight = _GUICtrlListView_ApproximateViewHeight($hListView) - 18
+
+	; Если изменилась ширина окна
+	$aPosGui = ControlGetPos($hGui, 'SysListView32', '[CLASS:SysListView32; INSTANCE:1]')
+
+	If @error Then Return
+
+	$nCurrGuiWidth = $aPosGui[2]
+	$nCurrGuiHeight = $aPosGui[3]
+
+	If $iListViewHeight > $nCurrGuiHeight Then
+		$nDefMargin = $nCurrGuiWidth - 17
+	Else
+		$nDefMargin = $nCurrGuiWidth
+	EndIf
+
+	_GUICtrlListView_SetColumnWidth($hListView, 0, $nDefMargin - _  ; $nCurrGuiWidth - 46
+			_GUICtrlListView_GetColumnWidth($hListView, 1) - _
+			_GUICtrlListView_GetColumnWidth($hListView, 2) - _
+			_GUICtrlListView_GetColumnWidth($hListView, 3) - _
+			_GUICtrlListView_GetColumnWidth($hListView, 4) - _
+			_GUICtrlListView_GetColumnWidth($hListView, 5))
+
+	Return $GUI_RUNDEFMSG
+EndFunc   ;==>_ListViewResize
+
+
+Func _CheckFileListUpdate()
+
+	If Not $bStarting Then
+		$bStarting = True
+		GUISetState(@SW_SHOW, $hGui)
+
+		_GetFileList()
+		_CompressFile()
+		Return
+	EndIf
+
+	_GetFileList()
+
+	If _IsFileListUpdated() And $isComplete Then
+		$isComplete = False
+		_ResetTimerState()
+		_CompressFile()
+	EndIf
+
+;~ 	_ArrayDisplay($aFileListData, '$aFileListData')
+EndFunc   ;==>_CheckFileListUpdate
+
+
+Func _IsFileListUpdated()
+	Return $nInx < $aFileListData[0][0]
+EndFunc   ;==>_IsFileListUpdated
+
+
+Func _StartTimerState()
+	If $bTimerState Then
+		$Timer = TimerInit()
+		AdlibRegister("_TimerUpdate", 200)
+	Else
+		_SetOkButtonText("OK")
+	EndIf
+	GUICtrlSetState($hOkButton, $GUI_ENABLE)
+EndFunc   ;==>_StartTimerState
+
+
+Func _ResetTimerState()
+	AdlibUnRegister("_TimerUpdate")
+
+	_SetOkButtonText($bTimerState ? "OK (10)" : "OK")
+	GUICtrlSetState($hOkButton, $GUI_DISABLE)
+EndFunc   ;==>_ResetTimerState
+
+
+Func _TimerUpdate()
+	Local $s = 11000 - Int(TimerDiff($Timer))
+	_TicksToTime($s, $Hour, $Mins, $Secs)
+
+	If $s <= 1000 And $bTimerState Then
+		_OnEventClose()
+		Return
+	EndIf
+
+	If $bTimerState Then
+		_SetOkButtonText("OK (" & $Secs & ")")
+	Else
+		_SetOkButtonText("OK")
+		AdlibUnRegister("_TimerUpdate")
+	EndIf
+EndFunc   ;==>_TimerUpdate
+
+
+Func _SetOkButtonText($sText)
+	If GUICtrlRead($hOkButton) <> $sText Then
+		GUICtrlSetData($hOkButton, $sText)
+	EndIf
+EndFunc   ;==>_SetOkButtonText
+
+
+Func _GetFileList()
+	Local $aFileList, $aStringSplit, $sPathFile, $sActionName, $sFileReadLine
+
+	$aFileList = _FO_FileSearch($sLogPathDir, 'txt', True, 125, 1, 1, 2)
+	If @error Then Return
+
+	For $i = 1 To $aFileList[0]
+		$sFileReadLine = FileReadLine($aFileList[$i])
+		$aStringSplit = StringSplit($sFileReadLine, "|")
+		If $aStringSplit[0] > 1 Then
+			$sPathFile = $aStringSplit[1] ; C:\Users\STEEL\Desktop\photo_2023-05-03_05-42-57.jpg
+			$sActionName = $aStringSplit[2] ; Moth.CompressionLossless
+		Else
+			$sPathFile = $sFileReadLine
+		EndIf
+
+		_AddToFileListData($sPathFile, $sActionName, $aFileList[$i])
+
+		FileDelete($aFileList[$i])
+	Next
+
+	If _IniString_Read($sMothINI, 'Config', 'SetOnTopWhenAddFiles') = 1 Then
+		; Сделаем окно видимым
+		WinSetOnTop($hGui, '', 1)
+		WinSetOnTop($hGui, '', 0)
+	EndIf
+
+EndFunc   ;==>_GetFileList
+
+
+Func _AddToFileListData($sPathFile, $sActionName, $sAddSource)
+	Local $aFileList, $sActionCommand
+
+	$sPathFile = _GetFilePatch($sPathFile)
+	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command')
+
+	If _IsDir($sPathFile) Then
+		$aFileList = _FO_FileSearch($sPathFile, _ArrayToString(_GetExtensionListExpanded(), '|'), True, 125, 1, 1, 2)
+		If Not @error Then
+			; Проверяем, достаточно ли места в массиве
+			Local $iNeededSize = $g_iCurrentFileCount + $aFileList[0]
+			If $iNeededSize >= UBound($aFileListData) Then
+				ReDim $aFileListData[$iNeededSize + $INITIAL_ARRAY_SIZE][6]
+			EndIf
+
+			; Пакетное добавление файлов
+			For $i = 1 To $aFileList[0]
+				$g_iCurrentFileCount += 1
+				$aFileListData[$g_iCurrentFileCount][0] = $sAddSource
+				$aFileListData[$g_iCurrentFileCount][1] = $aFileList[$i]
+				$aFileListData[$g_iCurrentFileCount][2] = $sActionName
+				$aFileListData[$g_iCurrentFileCount][3] = $sActionCommand
+			Next
+
+			$aFileListData[0][0] = $g_iCurrentFileCount
+			Return
+		EndIf
+	EndIf
+
+	; Проверяем, достаточно ли места в массиве для одного элемента
+	If $g_iCurrentFileCount + 1 >= UBound($aFileListData) Then
+		ReDim $aFileListData[$g_iCurrentFileCount + $INITIAL_ARRAY_SIZE][6]
+	EndIf
+
+	$g_iCurrentFileCount += 1
+	$aFileListData[$g_iCurrentFileCount][0] = $sAddSource
+	$aFileListData[$g_iCurrentFileCount][1] = $sPathFile
+	$aFileListData[$g_iCurrentFileCount][2] = $sActionName
+	$aFileListData[$g_iCurrentFileCount][3] = $sActionCommand
+	$aFileListData[0][0] = $g_iCurrentFileCount
+EndFunc   ;==>_AddToFileListData
+
+;===================
+; ColorQuantization
+;===================
+
+Func _ColorQuantization($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sActionCommand
+
+	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command')
+
+	If $sExtensionFile = 'png' Then
+
+		$sTempPath = _CompressionRun('truepng', '/cq c=' & _GetNumberFromString($sActionCommand) & ' {patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sTempPath, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	ElseIf $sExtensionFile = 'webp' Then
+		Local $sPathFilePng, $sPathFileWebp
+
+		; Конвертируем в png
+		$sPathFilePng = _GetTempPathFileForCompression('dwebp', 'png')
+		$sTempPath = _CompressionRun('dwebp', '-mt {patchFile} -o "' & $sPathFilePng & '"', $sPathFile, $sExtensionFile)
+
+		; Ужимаем палитру
+		$sTempPath = _CompressionRun('truepng', '/cq c=' & _GetNumberFromString($sActionCommand) & ' {patchFile}', $sPathFilePng, 'png')
+
+		; Конвертируем обратно в webp
+		$sPathFileWebp = _GetTempPathFileForCompression('cwebp', 'webp')
+		$sWinnerPath = _CompressionRun('cwebp', '-lossless -mt {patchFile} -o "' & $sPathFileWebp & '"', $sTempPath, $sExtensionFile)
+
+		; Оптимизируем webp
+		$sWinnerPath = _CompressionRun('pingo', '-lossless -s4 {patchFile}', $sPathFileWebp, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	Else
+
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, 0)
+
+	EndIf
+EndFunc   ;==>_ColorQuantization
+
+;==============
+; Resize Percent
+;==============
+
+Func _ResizePercent($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sActionCommand
+	Local $sPercent, $sFilter = 0
+
+	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command') ; percent_50_0
+	$aLineSplit = StringSplit($sActionCommand, '_')
+	If $aLineSplit[0] <> 3 Then
+		_ShowResult($sPathFile, $sFileSize, -1)
+		Return
+	EndIf
+
+	$sPercent = $aLineSplit[2]
+	$sFilter = $aLineSplit[3]
+
+	$sWinnerPath = _CompressionRun('magick', '{patchFile} -quiet -resize ' & $sPercent & '% -filter ' & _GetFilterNameByIndx($sFilter) & ' {patchFile}', $sPathFile, $sExtensionFile)
+	$sWinnerSize = FileGetSize($sWinnerPath)
+
+	If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+EndFunc   ;==>_ResizePercent
+
+;==============
+; Resize Pixel
+;==============
+
+Func _ResizePixel($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sActionCommand, $aLineSplit
+	Local $sUtilParams, $sWidth = 1, $sHeight = 1, $sFilter = 0
+
+	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command') ; resize_1000_1000_0_0
+	$aLineSplit = StringSplit($sActionCommand, '_')
+	If $aLineSplit[0] <> 5 Then
+		_ShowResult($sPathFile, $sFileSize, -1)
+		Return
+	EndIf
+
+;~ 	Mitchell — мягкий и сбалансированный фильтр, подходит для общего увеличения:
+;~ 	magick input.png -filter Mitchell -resize 200% output.png
+
+;~ 	Robidoux / RobidouxSharp — специально оптимизированы для ImageMagick, дают хорошие результаты с минимальным ringing/aliasing:
+;~ 	magick input.png -filter RobidouxSharp -resize 200% output.png
+
+;~ 	Catrom (Catmull-Rom) — более резкий фильтр увеличения, хорошо подчёркивает детали:
+;~ 	magick input.png -filter Catrom -resize 200% output.png
+
+;~ 	Для простого и очень быстрого увеличения без сглаживания (например, для пиксель-арта):
+;~ 	Можно использовать дискретные фильтры увеличения без интерполяции, например: Point или Box
+
+;~ 	magick input.png -filter Point -resize 200% output.png
+;~ 	magick input.png -filter Box -resize 200% output.png
+
+;~ 	Выбор:
+;~ 	Для фотографий > Lanczos или RobidouxSharp
+;~ 	Для иллюстраций, графики > Catrom или Mitchell
+;~ 	Для пиксель-арта > Point или Box
+
+
+	$sWidth = $aLineSplit[2]
+	$sHeight = $aLineSplit[3]
+	$sFilter = $aLineSplit[5]
+
+	Switch $aLineSplit[4]
+		Case 1 ; Заполнить
+			$sUtilParams = '{patchFile} -quiet -resize ' & $sWidth & 'x' & $sHeight & '^'
+		Case 2 ; Заполнить и обрезать
+			$sUtilParams = '{patchFile} -quiet -resize ' & $sWidth & 'x' & $sHeight & '^ -gravity center -extent ' & $sWidth & 'x' & $sHeight
+		Case Else ; Вписать по умолчанию
+			$sUtilParams = '{patchFile} -quiet -resize ' & $sWidth & 'x' & $sHeight
+	EndSwitch
+
+	$sUtilParams &= ' -filter ' & _GetFilterNameByIndx($sFilter) & ' {patchFile}'
+
+	$sWinnerPath = _CompressionRun('magick', $sUtilParams, $sPathFile, $sExtensionFile)
+	$sWinnerSize = FileGetSize($sWinnerPath)
+
+	If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+EndFunc   ;==>_ResizePixel
+
+;==============
+; ConvertToPng
+;==============
+
+Func _ConvertToPng($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFilePng, $sPathFileJpg, $sRunKey
+
+	If $sExtensionFile = 'png' Then
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, 0)
+
+	ElseIf $sExtensionFile = 'webp' Then
+
+		; Это путь файла во временной папке с новым расширением
+		$sPathFilePng = _GetTempPathFileForCompression('dwebp', 'png')
+		$sTempPath = _CompressionRun('dwebp', '-mt {patchFile} -o "' & $sPathFilePng & '"', $sPathFile, $sExtensionFile)
+		FileDelete($sTempPath)
+
+		$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sPathFilePng, 'png')
+		FileDelete($sPathFilePng)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, 'png', $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	ElseIf $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'avif' Or $sExtensionFile = 'jfif' Or $sExtensionFile = 'gif' Or $sExtensionFile = 'bmp' Or $sExtensionFile = 'heic' Then
+
+		If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
+		Else
+			$sPathFileJpg = $sPathFile
+		EndIf
+
+		; Это путь файла во временной папке с новым расширением
+		$sPathFilePng = _GetTempPathFileForCompression('magick', 'png')
+		; Для Gif команда немного отличается, мы забираем только первый фрейм
+		If $sExtensionFile = 'gif' Then
+			$sRunKey = '{patchFile}[0] -quiet "' & $sPathFilePng & '"'
+		Else
+			$sRunKey = '{patchFile} -quiet "' & $sPathFilePng & '"'
+		EndIf
+
+		$sTempPath = _CompressionRun('magick', $sRunKey, $sPathFileJpg, $sExtensionFile)
+		FileDelete($sTempPath)
+
+		$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sPathFilePng, 'png')
+		FileDelete($sPathFilePng)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, 'png', $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	Else
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, -1)
+	EndIf
+EndFunc   ;==>_ConvertToPng
+
+;=================
+; ConvertToWebp
+;=================
+
+Func _ConvertToWebp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFileWebp
+
+	If $sExtensionFile = 'webp' Then
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, 0)
+
+	ElseIf $sExtensionFile = 'png' Or $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+
+		If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
+		Else
+			$sPathFileJpg = $sPathFile
+		EndIf
+
+		; Это путь файла во временной папке с новым расширением
+		$sPathFileWebp = _GetTempPathFileForCompression('cwebp', 'webp')
+		$sTempPath = _CompressionRun('cwebp', '-lossless -mt {patchFile} -o "' & $sPathFileWebp & '"', $sPathFileJpg, $sExtensionFile)
+		FileDelete($sTempPath)
+
+		; Сожмём получившийся файл
+		$sWinnerPath = _CompressionRun('pingo', '-webp {patchFile}', $sPathFileWebp, 'webp')
+		FileDelete($sPathFileWebp)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, 'webp', $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	Else
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, -1)
+	EndIf
+EndFunc   ;==>_ConvertToWebp
+
+;================
+; ConvertToJpg
+;================
+
+Func _ConvertToJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFileJpg, $sRunKey
+
+	If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Then
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, 0)
+
+	ElseIf $sExtensionFile = 'webp' Then
+
+		; Это путь файла во временной папке с новым расширением
+		$sPathFileJpg = _GetTempPathFileForCompression('dwebp', 'jpg')
+		$sTempPath = _CompressionRun('dwebp', '-mt {patchFile} -o "' & $sPathFileJpg & '"', $sPathFile, $sExtensionFile)
+		FileDelete($sTempPath)
+
+		$sWinnerPath = _CompressionRun('pingo', '-lossless -s4 {patchFile}', $sPathFileJpg, 'jpg')
+		FileDelete($sPathFileJpg)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, 'jpg', $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	ElseIf $sExtensionFile = 'png' Or $sExtensionFile = 'gif' Or $sExtensionFile = 'avif' Or $sExtensionFile = 'jfif' Or $sExtensionFile = 'bmp' Or $sExtensionFile = 'heic' Then
+
+		; Это путь файла во временной папке с новым расширением
+		$sPathFileJpg = _GetTempPathFileForCompression('magick', 'jpg')
+		; Для Gif команда немного отличается, мы забираем только первый фрейм
+		If $sExtensionFile = 'gif' Then
+			$sRunKey = '{patchFile}[0] -quiet -background white -alpha remove -alpha off "' & $sPathFileJpg & '"'
+		Else
+			$sRunKey = '{patchFile} -quiet -background white -alpha remove -alpha off "' & $sPathFileJpg & '"'
+		EndIf
+		$sTempPath = _CompressionRun('magick', $sRunKey, $sPathFile, $sExtensionFile)
+		FileDelete($sTempPath)
+
+		$sWinnerPath = _CompressionRun('pingo', '-lossless -s3 {patchFile}', $sPathFileJpg, 'jpg')
+		FileDelete($sPathFileJpg)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If Not _FileSave($sWinnerPath, $sPathFile, 'jpg', $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+	Else
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, -1)
+	EndIf
+EndFunc   ;==>_ConvertToJpg
+
+
+Func _GetOrientationInfo($sPathFile)
+	Local $sImageGetInfo = _ImageGetInfo($sPathFile)
+	$sImageGetInfo = StringStripWS(StringReplace($sImageGetInfo, @LF, ";", 0, 2), 7)
+	Return _ImageGetParam($sImageGetInfo, "Orientation")
+EndFunc   ;==>_GetOrientationInfo
+
+
+Func _StringCompare($sString, $sSubstring)
+	Return StringCompare($sString, $sSubstring) = 0
+EndFunc   ;==>_StringCompare
+
+
+Func _GetJpegtranRunKey($sOrientation)
+	Switch $sOrientation
+		Case 'Mirrored'
+			Return '-flip horizontal' ; 2
+		Case '180'
+			Return '-rotate 180' ; 3
+		Case '180 and mirrored'
+			Return '-flip vertical' ; 4
+		Case '90 left and mirrored'
+			Return '-transpose' ; 5
+		Case '90 right'
+			Return '-rotate 90' ; 6
+		Case '90 right and mirrored'
+			Return '-transverse' ; 7
+		Case '90 left'
+			Return '-rotate 270' ; 8
+	EndSwitch
+	Return ''
+EndFunc   ;==>_GetJpegtranRunKey
+
+
+; Удалит Exif-данные и автоматически повернёт изображение, если в мете была инфа об ориентации
+Func _AutorotateJpg($sPathFile, $sExtensionFile, $bProgressive, $bSaveExif)
+
+	; Если Exif-данные не удаляем, то нет смысла а автоповороте
+	If $bSaveExif = True Then Return $sPathFile
+
+	Local $sRunKey = _GetJpegtranRunKey(_GetOrientationInfo($sPathFile))
+	If $sRunKey <> '' Then
+		If $bProgressive = True Then $sRunKey &= ' -progressive'
+		$sRunKey &= ' -copy none -optimize {patchFile} {patchFile}'
+		Return _CompressionRun('jpegtran', $sRunKey, $sPathFile, $sExtensionFile)
+	EndIf
+	Return $sPathFile
+EndFunc   ;==>_AutorotateJpg
+
+
+;=======
+; JPG
+;=======
+
+Func _CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $FilesList[2], $sRunKey, $iSize, $sPathFileJpg, _
+			$sWinnerPath = $sPathFile, _
+			$sWinnerSize = $sFileSize
+	Local $bSaveExif = False, $bToProgressive = False
+
+	$bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
+	$bToProgressive = _IniString_Read($sMothINI, $sActionName, 'ToProgressive') = 1
+
+	; Если будем чистить Exif инфу, надо убедиться, что изображение не требует поворота
+	; При очистке Exif - удалится инфа об ориентации картинки, и просмотрщики перестанут её автоматически поворачивать
+	; Значит перед стиранием надо самим повернуть картинку
+	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
+
+	$sRunKey = '{patchFile} --quiet --force -w ' & $nProcCount
+	If $bSaveExif = False Then $sRunKey &= ' --strip-all'
+	If $bToProgressive = True Then $sRunKey &= ' --all-progressive'
+	$FilesList[0] = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+
+	; Pingo не умеет сохранять метаданные и в прогрессивный jpeg.
+	; Потому используем его, только если нет этих условий
+	If $bSaveExif = False And $bToProgressive = False Then
+		$sRunKey = '-lossless -s4 {patchFile}'
+		$FilesList[1] = _CompressionRun('pingo', $sRunKey, $sPathFileJpg, $sExtensionFile)
+	Else
+		; Используем ect, только если Pingo не получается
+		; В сравнении он полезен только для прогрессива
+		$sRunKey = '-9 -quiet --strict --mt-deflate --mt-file'
+		If $bSaveExif = False Then $sRunKey &= ' -strip'
+		If $bToProgressive = True Then $sRunKey &= ' -progressive'
+		$sRunKey &= ' {patchFile}'
+		$FilesList[1] = _CompressionRun('ect', $sRunKey, $sPathFileJpg, $sExtensionFile)
+	EndIf
+
+	For $i = 0 To UBound($FilesList) - 1
+		If FileExists($FilesList[$i]) Then
+			$iSize = FileGetSize($FilesList[$i])
+			If $iSize < $sWinnerSize Then
+				$sWinnerSize = $iSize
+				$sWinnerPath = $FilesList[$i]
+			EndIf
+		EndIf
+	Next
+
+	For $i = 0 To UBound($FilesList) - 1
+		If $FilesList[$i] = $sWinnerPath Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($FilesList[$i])
+		EndIf
+	Next
+
+	If $sWinnerSize = $sFileSize Then $sWinnerSize = 0
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+EndFunc   ;==>_CompressionJpg
+
+
+;=======
+; JFIF
+;=======
+
+Func _CompressionJfif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sWinnerPath, $sWinnerSize, $bSaveExif = False, $bToProgressive = False
+
+	$bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
+	$bToProgressive = _IniString_Read($sMothINI, $sActionName, 'ToProgressive') = 1
+
+	; Если будем чистить Exif инфу, надо убедиться, что изображение не требует поворота
+	; При очистке Exif - удалится инфа об ориентации картинки, и просмотрщики перестанут её автоматически поворачивать
+	; Значит перед стиранием надо самим повернуть картинку
+	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
+
+	$sRunKey = '{patchFile} --quiet --force -w ' & $nProcCount
+	If $bSaveExif = False Then $sRunKey &= ' --strip-all'
+	If $bToProgressive = True Then $sRunKey &= ' --all-progressive'
+	$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+	$sWinnerSize = FileGetSize($sWinnerPath)
+
+	If $sWinnerSize < $sFileSize Then
+		If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+	Else
+		FileDelete($sWinnerPath)
+		$sWinnerSize = 0
+	EndIf
+
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+EndFunc   ;==>_CompressionJfif
+
+
+;=======
+; AVIF
+;=======
+
+Func _CompressionAvif($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'magick', _
+			'{patchFile} quiet -define heic:lossless=true -define heic:speed=0 {patchFile}')
+EndFunc   ;==>_CompressionAvif
+
+;=======
+; HEIC
+;=======
+
+Func _CompressionHeic($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'avifenc', _
+			'--lossless {patchFile} -o {patchFile}')
+EndFunc   ;==>_CompressionHeic
+
+;=======
+; GIF
+;=======
+
+Func _CompressionGif($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'gifsicle', _
+			'-w -j --no-conserve-memory -o {patchFile} -O3 --no-comments --no-extensions --no-names {patchFile}')
+EndFunc   ;==>_CompressionGif
+
+;=======
+; BMP
+;=======
+
+Func _CompressionBmp($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'imagew', _
+			'-opt bmp:version=auto -noresize -zipcmprlevel 9 -outfmt bmp -compress "rle" {patchFile} {patchFile}')
+EndFunc   ;==>_CompressionBmp
+
+;=======
+; PNG
+;=======
+
+Func _CompressionPng($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'pingo', _
+			'-lossless {patchFile}')
+EndFunc   ;==>_CompressionPng
+
+;=======
+; Helper
+;=======
+
+Func _CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, $sUtilName, $sUtilParams)
+	Local $sCompressedPath, $nCompressedSize
+
+	$sCompressedPath = _CompressionRun($sUtilName, $sUtilParams, $sFilePath, $sExtension)
+	$nCompressedSize = FileGetSize($sCompressedPath)
+
+	If $nCompressedSize < $nOriginalSize Then
+		If Not _FileSave($sCompressedPath, $sFilePath, $sExtension, $sAction) Then $nCompressedSize = -2 ; ошибка записи
+	Else
+		FileDelete($sCompressedPath)
+		$nCompressedSize = 0
+	EndIf
+
+	_ShowResult($sFilePath, $nOriginalSize, $nCompressedSize)
+EndFunc   ;==>_CompressionHelper
+
+;=======
+; WebP
+;=======
+
+Func _CompressionWebP($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $FilesList[2], $iSize, _
+			$sWinnerPath = $sPathFile, _
+			$sWinnerSize = $sFileSize
+
+	$FilesList[0] = _CompressionRun('pingo', '-webp -lossless {patchFile}', $sPathFile, $sExtensionFile)
+	$FilesList[1] = _CompressionRun('cwebp', '-lossless -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
+
+	For $i = 0 To UBound($FilesList) - 1
+		If FileExists($FilesList[$i]) Then
+			$iSize = FileGetSize($FilesList[$i])
+			If $iSize < $sWinnerSize Then
+				$sWinnerSize = $iSize
+				$sWinnerPath = $FilesList[$i]
+			EndIf
+		EndIf
+	Next
+
+	For $i = 0 To UBound($FilesList) - 1
+		If $FilesList[$i] = $sWinnerPath Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($FilesList[$i])
+		EndIf
+	Next
+
+	If $sWinnerSize = $sFileSize Then $sWinnerSize = 0
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+EndFunc   ;==>_CompressionWebP
+
+;=============================
+; Замена или сохранение файла
+;=============================
+
+Func _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	Local $hWinnerFile, $hFileRename, $sWinnerFileData, $sActionFilePostfix, $sPathFileRename, $bOkFunc = True
+
+	$sActionFilePostfix = _IniString_Read($sMothINI, $sActionName, 'FilePostfix')
+	$sPathFileRename = _GetPathFilePostfix($sPathFile, $sExtensionFile, $sActionFilePostfix)
+
+	; Если файл есть, мягенько его перезаписываем
+	If FileExists($sPathFileRename) Then
+
+		$hWinnerFile = FileOpen($sWinnerPath, 0 + 16) ; откроем для чтения
+		$hFileRename = FileOpen($sPathFileRename, 2 + 16) ; откроем для записи
+		; Проверяет, получилось ли открыть, перед тем как использовать функции чтения/записи в файл
+		If $hWinnerFile = -1 Or $hFileRename = -1 Then
+			$bOkFunc = False
+		EndIf
+
+		; Прочитаем содержимое
+		$sWinnerFileData = FileRead($hWinnerFile)
+		If @error Then
+			$bOkFunc = False
+		EndIf
+
+		; Сохраним в нужный файл
+		If Not FileWrite($hFileRename, $sWinnerFileData) Then
+			$bOkFunc = False
+		EndIf
+
+		; Закроем ранее открытые файлы
+		FileClose($hWinnerFile)
+		FileClose($hFileRename)
+
+		; В любом случае удаляем файл
+		FileDelete($sWinnerPath)
+
+	Else
+		; Либо просто сохраняем в нужную папку
+		If Not FileMove($sWinnerPath, $sPathFileRename, 9) Then
+			$bOkFunc = False
+		EndIf
+	EndIf
+
+	Return $bOkFunc
+EndFunc   ;==>_FileSave
+
+
+Func _GetPathFilePostfix($sPathFile, $sExtensionFile, $sActionFilePostfix)
+	Return StringTrimRight($sPathFile, StringLen(_GetFileExtension($sPathFile)) + 1) & $sActionFilePostfix & '.' & $sExtensionFile
+EndFunc   ;==>_GetPathFilePostfix
+
+
+;=======
+; Lossy
+;=======
+
+Func _CompressionLossy($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $FilesList[2], $iSize, $sRunKey, _
+			$sWinnerPath = $sPathFile, _
+			$sWinnerSize = $sFileSize, $sPathFileJpg
+	Local $bSaveExif = False
+
+	$bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
+
+	If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+
+		$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, $bSaveExif)
+
+		; jpegoptim
+		$sRunKey = '{patchFile} --quiet --force --max=92 --all-progressive -w ' & $nProcCount
+		If $bSaveExif = False Then $sRunKey &= ' --strip-all'
+		$FilesList[0] = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+
+		For $i = 0 To UBound($FilesList) - 1
+			If FileExists($FilesList[$i]) Then
+				$iSize = FileGetSize($FilesList[$i])
+				If $iSize < $sWinnerSize Then
+					$sWinnerSize = $iSize
+					$sWinnerPath = $FilesList[$i]
+				EndIf
+			EndIf
+		Next
+
+		For $i = 0 To UBound($FilesList) - 1
+			If $FilesList[$i] = $sWinnerPath Then
+				If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+			Else
+				FileDelete($FilesList[$i])
+			EndIf
+		Next
+
+		If $sWinnerSize = $sFileSize Then $sWinnerSize = 0
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'png' Then
+
+		$sWinnerPath = _CompressionRun('pingo', '{patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'webp' Then
+		$FilesList[0] = _CompressionRun('cwebp', '-q 100 -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
+		$FilesList[1] = _CompressionRun('cwebp', '-near_lossless 100 -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
+
+		For $i = 0 To UBound($FilesList) - 1
+			If FileExists($FilesList[$i]) Then
+				$iSize = FileGetSize($FilesList[$i])
+				If $iSize < $sWinnerSize Then
+					$sWinnerSize = $iSize
+					$sWinnerPath = $FilesList[$i]
+				EndIf
+			EndIf
+		Next
+
+		For $i = 0 To UBound($FilesList) - 1
+			If $FilesList[$i] = $sWinnerPath Then
+				If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+			Else
+				FileDelete($FilesList[$i])
+			EndIf
+		Next
+
+		If $sWinnerSize = $sFileSize Then $sWinnerSize = 0
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'gif' Then
+		$sWinnerPath = _CompressionRun('gifsicle', '-w -j --no-conserve-memory --lossy=100 -o {patchFile} -O3 --no-comments --no-extensions --no-names {patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	Else
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, -1)
+	EndIf
+EndFunc   ;==>_CompressionLossy
+
+;====================
+; Compression For Web
+;====================
+
+Func _CompressionForWeb($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	Local $sPathFileJpg, $sRunKey, _
+			$sWinnerPath = $sPathFile, _
+			$sWinnerSize = $sFileSize
+
+	If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+
+		$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, False)
+
+		; jpegoptim
+		$sRunKey = '{patchFile} --quiet --force --max=75 --all-progressive --strip-all -w ' & $nProcCount
+		$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'png' Then
+
+		$sWinnerPath = _CompressionRun('pingo', '-quality=75 -s4 {patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'webp' Then
+		$sWinnerPath = _CompressionRun('cwebp', '-q 75 -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	ElseIf $sExtensionFile = 'gif' Then
+		$sWinnerPath = _CompressionRun('gifsicle', '-w -j --no-conserve-memory --lossy=75 -o {patchFile} -O3 --no-comments --no-extensions --no-names {patchFile}', $sPathFile, $sExtensionFile)
+		$sWinnerSize = FileGetSize($sWinnerPath)
+
+		If $sWinnerSize < $sFileSize Then
+			If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then $sWinnerSize = -2 ; ошибка записи
+		Else
+			FileDelete($sWinnerPath)
+			$sWinnerSize = 0
+		EndIf
+
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
+		Return ;----------------------------------------
+
+	Else
+		_UpdateGUI()
+		_ShowResult($sPathFile, $sFileSize, -1)
+	EndIf
+
+EndFunc   ;==>_CompressionForWeb
+
+
+Func _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
+	Return $sImgPath & '\' & $sUtilsName & @HOUR & @MIN & @SEC & @MSEC & '.' & $sExtensionFile
+EndFunc   ;==>_GetTempPathFileForCompression
+
+;===========================================
+; Сжатие с использованием консольных утилит
+;===========================================
+
+Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
+	Local $sPatchCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
+
+	$sUtilsKey = StringReplace($sUtilsKey, '{patchFile}', '"' & $sPatchCompressFile & '"', 0)
+
+	_AddLogLine('' & $sUtilsName & '.exe ' & $sUtilsKey)
+
+	If FileCopy($sPathFile, $sPatchCompressFile, 9) Then
+		$ProcessPid = Run(@ScriptDir & '\apps\' & $sUtilsName & '.exe ' & $sUtilsKey, _GetFilePerePatch($sPathFile), @SW_HIDE)
+
+		While 1
+			If Not ProcessExists($ProcessPid) Then ExitLoop
+
+			_SetStepProcess(1)
+
+			_CheckFileListUpdate()
+
+			_UpdateGUI()
+
+			Sleep(50)
+		WEnd
+	Else
+
+		_AddLogLine('[!] Ошибка записи ' & $sPatchCompressFile)
+
+	EndIf
+	Return $sPatchCompressFile
+EndFunc   ;==>_CompressionRun
+
+
+Func _AddLogLine($sTmp)
+	$sGlobalLogs &= $sTmp & @CR
+EndFunc   ;==>_AddLogLine
+
+
+Func _GetCompressingSize($nCompressedSize, $nOriginalSize)
+	If $nOriginalSize = $nCompressedSize Then Return ''
+	; Абсолютная разница размеров
+	Local $nDifference = Abs($nCompressedSize - $nOriginalSize)
+	; Формат: +/- размер
+	Return ($nCompressedSize > $nOriginalSize ? '+' : '-') & _GetFileSizeStr($nDifference)
+EndFunc   ;==>_GetCompressingSize
+
+
+Func _GetCompressingPrecent($nCompressedSize, $nOriginalSize)
+	; Нет смысла считать
+	If $nOriginalSize = 0 Or $nOriginalSize = $nCompressedSize Then Return ''
+	; Процент изменения размера
+	Local $nPercent = (($nCompressedSize / $nOriginalSize) - 1) * 100
+	Local $nDisplay = Round($nPercent, 2)
+	; Если после округления отображается 0, но фактическое значение не равно 0, то увеличиваем точность, чтобы показать реальное изменение
+	If $nDisplay = 0 And $nPercent <> 0 Then
+		Local $nLog = Log(Abs($nPercent)) / Log(10)
+		Local $nDigits = -Int(Floor($nLog)) ; Количество знаков после запятой, достаточное для отображения ненулевого значения
+		$nDisplay = Round($nPercent, $nDigits)
+	EndIf
+
+	Return StringFormat("%s%s%%", $nDisplay > 0 ? "+" : "", $nDisplay)
+EndFunc   ;==>_GetCompressingPrecent
+
+
+Func _GetNumberFromString($sText)
+	; Оно удаляет все символы, кроме чисел
+	Return StringRegExpReplace($sText, '\D', '')
+EndFunc   ;==>_GetNumberFromString
+
+
+Func _IsDir($sPath)
+	Local $sAttrib = FileGetAttrib($sPath)
+	Return StringInStr($sAttrib, 'D', 2) > 0
+EndFunc   ;==>_IsDir
+
+
+Func _GetFileSizeStr($iBytes)
+	If Not $iBytes Then Return ''
+
+	Switch $iBytes
+		Case 10995116277760 To 109951162777600 ; 10 - 100 TB
+			$iBytes = Round($iBytes / 1099511627776, 1) & ' ТБ'
+		Case 1000000000000 To 10995116277759 ; 1000 GB - 10 TB
+			$iBytes = Round($iBytes / 1099511627776, 2) & ' ТБ'
+		Case 107374182400 To 999999999999 ; 100 - 999 GB
+			$iBytes = Round($iBytes / 1073741824) & ' ГБ'
+		Case 10737418240 To 107374182399 ; 10 - 100 GB
+			$iBytes = Round($iBytes / 1073741824, 1) & ' ГБ'
+		Case 1000000000 To 10737418239 ; 1000 MB - 10 GB
+			$iBytes = Round($iBytes / 1073741824, 2) & ' МБ'
+		Case 1000000 To 999999999 ; 1000 KB - 999 MB
+			$iBytes = Round($iBytes / 1048576, 2) & ' МБ'
+		Case 1000 To 999999 ; 1000 B - 999 KB
+			$iBytes = Round($iBytes / 1024) & ' КБ'
+		Case 0 To 999
+			$iBytes &= ' Б'
+	EndSwitch
+	Return $iBytes
+EndFunc   ;==>_GetFileSizeStr
+
+
+; Show a menu in a given GUI window which belongs to a given GUI ctrl
+Func ShowMenu($hWnd, $nContextID, $nContextControlID, $iMouse = 0)
+	Local $hMenu = GUICtrlGetHandle($nContextID)
+	Local $iCtrlPos = ControlGetPos($hWnd, "", $nContextControlID)
+
+	Local $X = $iCtrlPos[0]
+	Local $Y = $iCtrlPos[1] + $iCtrlPos[3]
+
+	ClientToScreen($hWnd, $X, $Y)
+
+	If $iMouse Then
+		$X = MouseGetPos(0)
+		$Y = MouseGetPos(1)
+	EndIf
+
+	DllCall("user32.dll", "int", "TrackPopupMenuEx", "hwnd", $hMenu, "int", 0, "int", $X, "int", $Y, "hwnd", $hWnd, "ptr", 0)
+EndFunc   ;==>ShowMenu
+
+; Convert the client (GUI) coordinates to screen (desktop) coordinates
+Func ClientToScreen($hWnd, ByRef $X, ByRef $Y)
+	Local $stPoint = DllStructCreate("int;int")
+
+	DllStructSetData($stPoint, 1, $X)
+	DllStructSetData($stPoint, 2, $Y)
+
+	DllCall("user32.dll", "int", "ClientToScreen", "hwnd", $hWnd, "ptr", DllStructGetPtr($stPoint))
+
+	$X = DllStructGetData($stPoint, 1)
+	$Y = DllStructGetData($stPoint, 2)
+	; release Struct not really needed as it is a local
+	$stPoint = 0
+EndFunc   ;==>ClientToScreen
+
+; Проверка на множественный запуск скрипта
+Func _CheckSingleInstance()
+	If _Singleton($sAppName, 1) = 0 Then
+		Exit
+	EndIf
+EndFunc   ;==>_CheckSingleInstance
+
+
+	;~ ; Ранняя проверка поддержки формата
+	;~ If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
+	;~ 	_ShowResult($sPathFile, $sFileSize, $STATUS_NOT_SUPPORTED)
+	;~ 	Return
+	;~ EndIf
+
+
+
+; Функция проверки поддержки формата
+Func _IsFormatSupported($sExtensionFile, ByRef $sActionName)
+	Local $aSupportedFormats = Null
+
+	If StringInStr($sActionName, "CompressionLossless") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
+	ElseIf StringInStr($sActionName, "CompressionLossy") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
+	ElseIf StringInStr($sActionName, "CompressionForWeb") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_FOR_WEB
+	ElseIf StringInStr($sActionName, "ConvertToPng") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_PNG
+	ElseIf StringInStr($sActionName, "ConvertToWebp") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_WEBP
+	ElseIf StringInStr($sActionName, "ConvertToJpg") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_JPG
+	ElseIf StringInStr($sActionName, "ColorQuantization") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COLOR_QUANTIZATION
+	ElseIf StringInStr($sActionName, "Resize") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_RESIZE
+	EndIf
+
+	If $aSupportedFormats = Null Then Return False
+
+	For $sFormat In $aSupportedFormats
+		If $sExtensionFile = $sFormat Then
+			Return True
+		EndIf
+	Next
+
+	Return False
+EndFunc
+
