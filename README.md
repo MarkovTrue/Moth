@@ -1,4 +1,7 @@
-# 🦋 Moth — сжатие изображений без потерь
+# 🦋 Moth - сжатие изображений без потерь
+
+[![GitHub Release](https://img.shields.io/github/release/MarkovTrue/Moth)](https://github.com/MarkovTrue/Moth/releases) [![Downloads](https://img.shields.io/github/downloads/MarkovTrue/Moth/latest/total?label=downloads&color=blue)](https://github.com/MarkovTrue/Moth/releases)
+
 Утилита для пакетной оптимизации или конвертации за два клика из контекстного меню.
 
 
@@ -14,30 +17,18 @@
 
 ## Поддерживаемые форматы по типам действий
 
-*Сжатие без потерь (lossless)* - удаляется все EXIF/мета данные
-`AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-
-*Сжатие с потерями (lossy)* - сжатие без видимых изменений
-`GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-
-*Сжатие для WEB* - более арессивное сжатие, но щадит градиенты, JPEG конвертируется в Progressive JPEG
-`GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-
-*Изменить размер* - доп параметры в в файле конфигурации
-
-`AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-
-*Изменение палитры (color quantization)* - квантование цвета это способ уменьшить размер изображения за счет уменьшения палитры цветов: `PNG`
-
-*Конвертация в PNG:* `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP`
-
-*Конвертация в WEBP:* `JFIF` `JPE` `JPEG` `JPG` `PNG`
-
-*Конвертация в JPG:* `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP`
+* Сжатие без потерь (lossless) - удаляется все EXIF/мета данные `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+* Сжатие с потерями (lossy) - сжатие без видимых изменений `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+* Сжатие для WEB - более арессивное сжатие, но щадит градиенты `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+Изменить размер - доп параметры в в файле конфигурации `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+Изменение палитры (color quantization) - квантование цвета это способ уменьшить размер изображения за счет уменьшения палитры цветов: `PNG`
+Конвертация в PNG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP`
+Конвертация в WEBP `JFIF` `JPE` `JPEG` `JPG` `PNG`
+Конвертация в JPG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP`
 
 
 ## Конфигурация
-Команды настраиваются в [Moth.ini](Moth.ini).
+Команды настраиваются в Moth.ini
 Можно изменить правило перезаписи, названия, иконки или добавить свой пункт.
 
 
