@@ -20,11 +20,11 @@
 * Сжатие без потерь (lossless) - удаляется все EXIF/мета данные `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
 * Сжатие с потерями (lossy) - сжатие без видимых изменений `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
 * Сжатие для WEB - более арессивное сжатие, но щадит градиенты `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-Изменить размер - доп параметры в в файле конфигурации `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-Изменение палитры (color quantization) - квантование цвета это способ уменьшить размер изображения за счет уменьшения палитры цветов: `PNG`
-Конвертация в PNG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP`
-Конвертация в WEBP `JFIF` `JPE` `JPEG` `JPG` `PNG`
-Конвертация в JPG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP`
+* Изменить размер - доп параметры в в файле конфигурации `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+* Изменение палитры (color quantization) - квантование цвета это способ уменьшить размер изображения за счет уменьшения палитры цветов: `PNG`
+* Конвертация в PNG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP`
+* Конвертация в WEBP `JFIF` `JPE` `JPEG` `JPG` `PNG`
+* Конвертация в JPG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP`
 
 
 ## Конфигурация
