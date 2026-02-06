@@ -16,12 +16,12 @@ Global Const _
 		$FORMAT_WEBP = 'webp'
 
 Global Const _
-		$sAppName = 'Moth 1.38', _								; заголовок программы
+		$sAppName = 'Moth 1.39', _								; заголовок программы
 		$sMothINI = FileRead(@ScriptDir & '\Moth.ini'), _				; путь к файлу настроек
 		$sTmpPath = @TempDir & '\Moth', _							; путь к временной папке
 		$sImgPath = @TempDir & '\Moth\images', _					; путь к временной папке картинок
 		$sLogPathDir = @TempDir & '\Moth\logs', _					; путь к папке списка заданий
-		$bRegDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'AppsUseLightTheme') == 0 ? True : False
+		$bRegDarkTheme = RegRead('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize', 'AppsUseLightTheme') = 0 ? True : False
 
 Global Const $aExtensionWhiteList = [ _
 		$FORMAT_AVIF, _
@@ -35,7 +35,7 @@ Global Const $aExtensionWhiteList = [ _
 
 Global Const _
 		$SUPPORT_FORMATS_COLOR_QUANTIZATION = [$FORMAT_PNG], _
-		$SUPPORT_FORMATS_RESIZE = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_RESIZE = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_COMPRESSION_LOSSY = [$FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_COMPRESSION_FOR_WEB = [$FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_PNG = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_WEBP], _
@@ -45,6 +45,40 @@ Global Const _
 
 Global $sHKLM = 'HKEY_LOCAL_MACHINE64'
 Global $sRegKey = $sHKLM & '\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell\'
+
+
+; Функция проверки поддержки формата
+Func _IsFormatSupported($sExtensionFile, ByRef $sActionName)
+	Local $aSupportedFormats = Null
+
+	If StringInStr($sActionName, "CompressionLossless") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
+	ElseIf StringInStr($sActionName, "CompressionLossy") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
+	ElseIf StringInStr($sActionName, "CompressionWeb") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_FOR_WEB
+	ElseIf StringInStr($sActionName, "ConvertToPng") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_PNG
+	ElseIf StringInStr($sActionName, "ConvertToWebp") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_WEBP
+	ElseIf StringInStr($sActionName, "ConvertToJpg") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_JPG
+	ElseIf StringInStr($sActionName, "ColorQuantization") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COLOR_QUANTIZATION
+	ElseIf StringInStr($sActionName, "Resize") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_RESIZE
+	EndIf
+
+	If $aSupportedFormats = Null Then Return False
+
+	For $sFormat In $aSupportedFormats
+		If $sExtensionFile = $sFormat Then
+			Return True
+		EndIf
+	Next
+
+	Return False
+EndFunc   ;==>_IsFormatSupported
 
 
 Func _GetExtensionListExpanded()
@@ -93,31 +127,19 @@ Func _GetFilterNameByIndx($nIndx)
 EndFunc   ;==>_GetFilterNameByIndx
 
 
-; Извлечь расширение файла из полного пути
-; Параметры:
-;   $sPathFile - полный путь к файлу
-; Возвращает:
-;   Расширение файла без точки
+; Расширение файла без точки
 Func _GetFileExtension($sPathFile)
 	Return StringRegExpReplace($sPathFile, '^.*\.', '')
 EndFunc   ;==>_GetFileExtension
 
 
-; Извлечь имя файла с расширением из полного пути
-; Параметры:
-;   $sPathFile - полный путь к файлу
-; Возвращает:
-;   Имя файла с расширением
+; Имя файла с расширением
 Func _GetFileName($sPathFile)
 	Return StringRegExpReplace($sPathFile, '^.*\\', '')
 EndFunc   ;==>_GetFileName
 
 
-; Проверить, является ли путь директорией
-; Параметры:
-;   $sTmp - путь для проверки
-; Возвращает:
-;   True если это директория, иначе False
+; True если это директория, иначе False
 Func _IsDir($sTmp)
 	$sTmp = FileGetAttrib($sTmp & "\")
 	Return StringInStr($sTmp, 'D', 2) > 0

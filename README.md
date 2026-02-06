@@ -12,21 +12,21 @@
 * Поддержка перетаскивания drag-and-drop
 * Список файлов обновляется динамически, можно дополнять очередь пока идет работа
 * Гибкая настройка перезаписи: по умолчанию файл перезаписывается только при сжатии без потерь
-* Поддержка форматов: `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
+* Поддержка форматов `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
 
 
 ## Поддерживаемые форматы по типам действий
 
 | Действие | Поддерживаемые форматы |
 |---|---|
-| Сжатие без потерь (lossless)<br><sub>Удаляются все EXIF/мета данные</sub> | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
-| Сжатие с потерями (lossy)<br><sub>Сжатие без видимых изменений</sub> | `GIF, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
-| Сжатие для WEB<br><sub>Более агрессивное сжатие, но щадит градиенты</sub> | `GIF, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
+| Сжатие без потерь (lossless)<br><sub>Удаляются все EXIF/мета данные</sub> | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Сжатие с потерями (lossy)<br><sub>Сжатие без видимых изменений</sub> | `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Сжатие для WEB<br><sub>Более агрессивное сжатие, но щадит градиенты</sub> | `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
 | Изменение палитры<br><sub>Квантование цвета - это способ уменьшить размер<br>изображения за счет уменьшения палитры цветов</sub> | `PNG` |
-| Изменить размер<br><sub>Доп параметры есть в файле конфигурации</sub> | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
-| Конвертация в PNG | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, WEBP` |
-| Конвертация в WEBP | `JFIF, JPE, JPEG, JPG, PNG` |
-| Конвертация в JPG | `AVIF, BMP, GIF, HEIC, JFIF, PNG, WEBP` |
+| Изменить размер<br><sub>Доп параметры есть в файле конфигурации</sub> | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Конвертация в PNG | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP` |
+| Конвертация в WEBP | `JFIF` `JPE` `JPEG` `JPG` `PNG` |
+| Конвертация в JPG | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP` |
 
 
 ## Конфигурация
