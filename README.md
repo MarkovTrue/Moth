@@ -14,17 +14,18 @@
 * Гибкая настройка перезаписи: по умолчанию файл перезаписывается только при сжатии без потерь
 * Поддержка форматов: `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
 
+---
 
-## Поддерживаемые форматы по типам действий
-
-* Сжатие без потерь (lossless) - удаляется все EXIF/мета данные `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-* Сжатие с потерями (lossy) - сжатие без видимых изменений `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-* Сжатие для WEB - более арессивное сжатие, но щадит градиенты `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-* Изменить размер - доп параметры в в файле конфигурации `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP`
-* Изменение палитры (color quantization) - квантование цвета это способ уменьшить размер изображения за счет уменьшения палитры цветов: `PNG`
-* Конвертация в PNG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP`
-* Конвертация в WEBP `JFIF` `JPE` `JPEG` `JPG` `PNG`
-* Конвертация в JPG `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP`
+| Действие | Поддерживаемые форматы |
+|---|---|
+| Сжатие без потерь (lossless)<br><sub>Удаляются все EXIF/мета данные</sub> | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
+| Сжатие с потерями (lossy)<br><sub>Сжатие без видимых изменений</sub> | `GIF, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
+| Сжатие для WEB<br><sub>Более агрессивное сжатие, но щадит градиенты</sub> | `GIF, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
+| Изменение палитры<br><sub>Квантование цвета - это способ уменьшить размер<br>изображения за счет уменьшения палитры цветов</sub> | `PNG` |
+| Изменить размер<br><sub>Доп параметры есть в файле конфигурации</sub> | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, PNG, WEBP` |
+| Конвертация в PNG | `AVIF, BMP, GIF, HEIC, JFIF, JPE, JPEG, JPG, WEBP` |
+| Конвертация в WEBP | `JFIF, JPE, JPEG, JPG, PNG` |
+| Конвертация в JPG | `AVIF, BMP, GIF, HEIC, JFIF, PNG, WEBP` |
 
 
 ## Конфигурация
