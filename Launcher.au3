@@ -1,8 +1,8 @@
 #pragma compile(Out, ..\MothPortable\Launcher.exe)
 #pragma compile(Icon, ..\MothPortable\themes\Moth.ico)
 #pragma compile(ProductName, Moth Launcher)
-#pragma compile(LegalCopyright, © SANILA)
-#pragma compile(Comments, Program made by SANILA)
+#pragma compile(LegalCopyright, © MarkovTrue)
+#pragma compile(Comments, Program made by MarkovTrue)
 
 #NoTrayIcon
 #RequireAdmin
@@ -242,18 +242,3 @@ Func _GetSeparator($nIndx, $aActionList)
 	Return 0
 EndFunc   ;==>_GetSeparator
 
-
-Func _GetFileExtension($sPathFile)
-	Return StringRegExpReplace($sPathFile, '^.*\.', '')
-EndFunc   ;==>_GetFileExtension
-
-
-Func _GetFileName($sPathFile)
-	Return StringRegExpReplace($sPathFile, '^.*\\', '')
-EndFunc   ;==>_GetFileName
-
-
-Func _IsDir($sTmp)
-	$sTmp = FileGetAttrib($sTmp)
-	Return StringInStr($sTmp, 'D', 2) > 0
-EndFunc   ;==>_IsDir

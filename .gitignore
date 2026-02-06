@@ -1,0 +1,10 @@
+# .gitignore для проекта Moth
+
+# AutoIt / compiled outputs
+Moth.ini
+Resiser.au3
+Settings.au3
+
+# IDE / редакторы
+.vscode/
+BackUp/

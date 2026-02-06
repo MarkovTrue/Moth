@@ -16,7 +16,7 @@ Global Const _
 		$FORMAT_WEBP = 'webp'
 
 Global Const _
-		$sAppName = 'Moth 1.37', _								; заголовок программы
+		$sAppName = 'Moth 1.38', _								; заголовок программы
 		$sMothINI = FileRead(@ScriptDir & '\Moth.ini'), _				; путь к файлу настроек
 		$sTmpPath = @TempDir & '\Moth', _							; путь к временной папке
 		$sImgPath = @TempDir & '\Moth\images', _					; путь к временной папке картинок
@@ -91,3 +91,34 @@ Func _GetFilterNameByIndx($nIndx)
 	EndSwitch
 	Return 'Lanczos'
 EndFunc   ;==>_GetFilterNameByIndx
+
+
+; Извлечь расширение файла из полного пути
+; Параметры:
+;   $sPathFile - полный путь к файлу
+; Возвращает:
+;   Расширение файла без точки
+Func _GetFileExtension($sPathFile)
+	Return StringRegExpReplace($sPathFile, '^.*\.', '')
+EndFunc   ;==>_GetFileExtension
+
+
+; Извлечь имя файла с расширением из полного пути
+; Параметры:
+;   $sPathFile - полный путь к файлу
+; Возвращает:
+;   Имя файла с расширением
+Func _GetFileName($sPathFile)
+	Return StringRegExpReplace($sPathFile, '^.*\\', '')
+EndFunc   ;==>_GetFileName
+
+
+; Проверить, является ли путь директорией
+; Параметры:
+;   $sTmp - путь для проверки
+; Возвращает:
+;   True если это директория, иначе False
+Func _IsDir($sTmp)
+	$sTmp = FileGetAttrib($sTmp & "\")
+	Return StringInStr($sTmp, 'D', 2) > 0
+EndFunc   ;==>_IsDir

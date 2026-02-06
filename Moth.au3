@@ -1,10 +1,11 @@
 ﻿#pragma compile(Out, ..\MothPortable\Moth.exe)
 #pragma compile(Icon, ..\MothPortable\themes\Moth.ico)
-#pragma compile(LegalCopyright, © SANILA)
-#pragma compile(Comments, Program made by SANILA)
+#pragma compile(LegalCopyright, © MarkovTrue)
+#pragma compile(Comments, Program made by MarkovTrue)
 
 #NoTrayIcon
 #RequireAdmin
+Opt("GUIOnEventMode", 1) ; Включаем режим OnEvent
 
 #include <FileOperations.au3>
 #include <GUIConstants.au3>
@@ -22,16 +23,24 @@
 #include <Common\ExplorerIcon.au3>
 #include <Common\MothCommon.au3>
 
+
+; Костанты статуса обработки файла
+Global Const $STATUS_NOT_SUPPORTED = -1
+Global Const $STATUS_SAVE_ERROR = -2
+Global Const $STATUS_SKIPPED_FOLDER = -3
+Global Const $STATUS_SKIPPED = 0
+
 ; Константы для оптимизации
 Global Const $GUI_UPDATE_INTERVAL = 250 ; Интервал обновления GUI в мс
-Global Const $INITIAL_ARRAY_SIZE = 1000 ; Начальный размер массива файлов
+Global Const $INITIAL_ARRAY_SIZE = 1000 ; Начальный размер чанка файлов
 
-; Оптимизированный массив файлов
+; Константы минимальных размеров окна
+Global Const $GUI_MIN_WIDTH = 440
+Global Const $GUI_MIN_HEIGHT = 157 ; Ровно на 3 строки в высоту
+
+; Оптимизированный массив файлов: [индекс][0-источник, 1-путь, 2-действие, 3-команда, 4-результат, 5-вGUI]
 Global $aFileListData[$INITIAL_ARRAY_SIZE][6]
 Global $g_iCurrentFileCount = 0
-
-; Включаем режим OnEvent, в этом режиме события вызывают пользовательскую функцию
-Opt("GUIOnEventMode", 1)
 
 
 If @OSArch = 'X86' Then
@@ -42,76 +51,77 @@ EndIf
 ; Проверка на множественный запуск
 _CheckSingleInstance()
 
-Global Const $STATUS_NOT_SUPPORTED = -1
-Global Const $STATUS_SAVE_ERROR = -2
-Global Const $STATUS_SKIPPED_FOLDER = -3
-Global Const $STATUS_SKIPPED = 0
 
 Global $bShowLog = False
+
+
+Global $sGlobalLogs = '', $nLogDirSize, $aDropList, $sAllWinnerSize = 0, $sAllFileSize = 0, _
+		$hGui, $hListView, $nInx = 1, $nCurrProgressMaxValue, $iLastProcessPid
+
+Global $ContextMenuItem1, $ContextMenuItem2, $hOkButton, $hDropDummy, $ContextMenu, $hGraphic, $hProgress, $Info
+Global $Timer, $Secs, $Mins, $Hour, $bTimerState = True, $hImageIcons
+Global $iGuiWidth = 527, $iGuiHeight = 167, $nItemFileColumnWidth, $isComplete = False
+Global $nLastUpdatedIndex = 0 ; Индекс последнего успешно обновленного элемента
+Global $bStarting = False
+Global $aIconMap[0][2]
 
 Global $nProcCount = 1
 If EnvGet("NUMBER_OF_PROCESSORS") > 0 Then $nProcCount = EnvGet("NUMBER_OF_PROCESSORS")
 
-Global $sGlobalLogs = '', $nLogDirSize, $ProcessPid, $aDropList, $sAllWinnerSize = 0, $sAllFileSize = 0, _
-		$hGui, $hListView, $nInx = 1, $nCurrProgressMaxValue
-
-Global $Timer, $Secs, $Mins, $Hour, $bTimerState = True, $hImageIcons
-Global $nGuiWidth = 527, $nGuiHeight = 167, $nItemFileColumnWidth, $isComplete = False
-Global $nLastUpdatedIndex = 0 ; Индекс последнего успешно обновленного элемента
-
-Global $bStarting = False
-
-Global $aIconMap[0][2]
 
 If Not FileExists($sImgPath) Then DirCreate($sImgPath)
 
-$hGui = GUICreate($sAppName, $nGuiWidth, $nGuiHeight, 0, 0, $WS_CAPTION + $WS_THICKFRAME, $WS_EX_ACCEPTFILES)
+_MainGUI()
+_DefineEvents()
+_SetPositionOnDesktop()
 
-; Создадим ListView
-$hListView = GUICtrlCreateListView("", 6, 2, $nGuiWidth - 13, 122, _
-		BitOR($LVS_NOSORTHEADER, $LVS_SINGLESEL, $LVS_REPORT), _
-		BitOR($LVS_EX_INFOTIP, $LVS_EX_FULLROWSELECT))
-GUICtrlSetResizing($hListView, $GUI_DOCKBORDERS)
-GUICtrlSetState($hListView, $GUI_DROPACCEPTED)
 
-Global $aListviewColumNames = ["Файл", "Размер", "Новый", "Процент", "Сжатие", "Задача"]
-_GUICtrlListView_InsertColumn($hListView, 0, $aListviewColumNames[0], 172)
-_GUICtrlListView_InsertColumn($hListView, 1, $aListviewColumNames[1], 70, $LVCFMT_RIGHT)
-_GUICtrlListView_InsertColumn($hListView, 2, $aListviewColumNames[2], 70)
-_GUICtrlListView_InsertColumn($hListView, 3, $aListviewColumNames[3], 65, $LVCFMT_RIGHT)
-_GUICtrlListView_InsertColumn($hListView, 4, $aListviewColumNames[4], 65)
-_GUICtrlListView_InsertColumn($hListView, 5, $aListviewColumNames[5], 65)
+Func _MainGUI()
 
-$hImageIcons = _GUIImageList_Create(16, 16, 5, 3)
-_GUICtrlListView_SetImageList($hListView, $hImageIcons, 1)
+	$hGui = GUICreate($sAppName, $iGuiWidth, $iGuiHeight, 0, 0, $WS_CAPTION + $WS_THICKFRAME, $WS_EX_ACCEPTFILES)
 
-; Контекстное меню ListView
-$DummyMenu = GUICtrlCreateDummy()
-$ContextMenu = GUICtrlCreateContextMenu($DummyMenu)
-$ContextMenuItem1 = GUICtrlCreateMenuItem("Показать в проводнике", $ContextMenu)
-$ContextMenuItem2 = GUICtrlCreateMenuItem("Копировать как путь", $ContextMenu)
-GUICtrlSetOnEvent($ContextMenuItem1, "_OnEventContextMenuItem1")
-GUICtrlSetOnEvent($ContextMenuItem2, "_OnEventContextMenuItem2")
+	; Создадим ListView
+	$hListView = GUICtrlCreateListView("", 6, 2, $iGuiWidth - 13, 122, _
+			BitOR($LVS_NOSORTHEADER, $LVS_SINGLESEL, $LVS_REPORT), _
+			BitOR($LVS_EX_INFOTIP, $LVS_EX_FULLROWSELECT))
+	GUICtrlSetResizing($hListView, $GUI_DOCKBORDERS)
+	GUICtrlSetState($hListView, $GUI_DROPACCEPTED)
 
-;~ $hGraphic = GUICtrlCreateLabel('', 0, 2 + 124, $nGuiWidth, 40)
+	Global $aListviewColumNames = ["Файл", "Размер", "Новый", "Процент", "Сжатие", "Задача"]
+	_GUICtrlListView_InsertColumn($hListView, 0, $aListviewColumNames[0], 172)
+	_GUICtrlListView_InsertColumn($hListView, 1, $aListviewColumNames[1], 70, $LVCFMT_RIGHT)
+	_GUICtrlListView_InsertColumn($hListView, 2, $aListviewColumNames[2], 70)
+	_GUICtrlListView_InsertColumn($hListView, 3, $aListviewColumNames[3], 65, $LVCFMT_RIGHT)
+	_GUICtrlListView_InsertColumn($hListView, 4, $aListviewColumNames[4], 65)
+	_GUICtrlListView_InsertColumn($hListView, 5, $aListviewColumNames[5], 65)
+
+	$hImageIcons = _GUIImageList_Create(16, 16, 5, 3)
+	_GUICtrlListView_SetImageList($hListView, $hImageIcons, 1)
+
+	; Контекстное меню ListView
+	$DummyMenu = GUICtrlCreateDummy()
+	$ContextMenu = GUICtrlCreateContextMenu($DummyMenu)
+	$ContextMenuItem1 = GUICtrlCreateMenuItem("Показать в проводнике", $ContextMenu)
+	$ContextMenuItem2 = GUICtrlCreateMenuItem("Копировать как путь", $ContextMenu)
+
+;~ $hGraphic = GUICtrlCreateLabel('', 0, 2 + 124, $iGuiWidth, 40)
 ;~ GUICtrlSetState($hGraphic, $GUI_DISABLE)
 ;~ GUICtrlSetResizing($hGraphic, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
 
-$hGraphic = GUICtrlCreateLabel('', 0, 1, $nGuiWidth, 124)
-GUICtrlSetState($hGraphic, $GUI_DISABLE)
-GUICtrlSetResizing($hGraphic, $GUI_DOCKBORDERS)
+	$hGraphic = GUICtrlCreateLabel('', 0, 1, $iGuiWidth, 124)
+	GUICtrlSetState($hGraphic, $GUI_DISABLE)
+	GUICtrlSetResizing($hGraphic, $GUI_DOCKBORDERS)
 
-$hProgress = GUICtrlCreateProgress(6, 125, $nGuiWidth - 13, 5)
-GUICtrlSetResizing($hProgress, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+	$hProgress = GUICtrlCreateProgress(6, 125, $iGuiWidth - 13, 5)
+	GUICtrlSetResizing($hProgress, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
 
-$Info = GUICtrlCreateLabel('', 10, 142, $nGuiWidth - 110, 17, $SS_LEFT)
-GUICtrlSetResizing($Info, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+	$Info = GUICtrlCreateLabel('', 10, 142, $iGuiWidth - 110, 17, $SS_LEFT)
+	GUICtrlSetResizing($Info, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
 ;~ GUICtrlSetBkColor(-1, 0x191919)
 
-$hOkButton = GUICtrlCreateButton("OK (10)", $nGuiWidth - 68, 137, 60, 22)
-GUICtrlSetResizing($hOkButton, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
-GUICtrlSetState($hOkButton, $GUI_DISABLE)
-GUICtrlSetOnEvent($hOkButton, "_OnEventOkButton")
+	$hOkButton = GUICtrlCreateButton("OK (10)", $iGuiWidth - 68, 137, 60, 22)
+	GUICtrlSetResizing($hOkButton, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
+	GUICtrlSetState($hOkButton, $GUI_DISABLE)
 
 ;~ $Icon = GUICtrlCreateIcon('', -1, 398, 137, 16, 16)
 ;~ GUICtrlSetResizing(-1, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
@@ -125,67 +135,79 @@ GUICtrlSetOnEvent($hOkButton, "_OnEventOkButton")
 ;~ GUICtrlSetOnEvent($hSettingsButton, "_OnEventSettingsButton")
 ;~ GUICtrlSetImage($hSettingsButton, _GetThemePath() & '\gear.ico')
 
+	$hDropDummy = GUICtrlCreateDummy()
 
-$hDropDummy = GUICtrlCreateDummy()
-GUICtrlSetOnEvent($hDropDummy, "_OnEventDropped")
+EndFunc   ;==>_MainGUI
 
-GUISetOnEvent($GUI_EVENT_CLOSE, "_OnEventClose")
-GUISetOnEvent($GUI_EVENT_PRIMARYDOWN, "_OnEventClickDown")
-GUISetOnEvent($GUI_EVENT_SECONDARYDOWN, "_OnEventClickDown")
-GUIRegisterMsg($WM_DROPFILES, "_OnEvent_DROPFILES")
 
-; Функция WM_GETMINMAXINFO выполняется при перемещении окна, сворачивании и изменении размеров.
-; Позволяет установить пределы увеличения и уменьшения окна, как по горизонтали, так и по вертикали индивидуально.
-; А также позицию и размеры развёрнутого состояния. Установочные параметры можно игнорировать указав только необходимые параметры
-GUIRegisterMsg($WM_GETMINMAXINFO, "_OnEvent_GETMINMAXINFO")
+Func _DefineEvents()
+	GUICtrlSetOnEvent($ContextMenuItem1, "_OnEventContextMenuItem1")
+	GUICtrlSetOnEvent($ContextMenuItem2, "_OnEventContextMenuItem2")
+	GUICtrlSetOnEvent($hOkButton, "_OnEventOkButton")
+	GUICtrlSetOnEvent($hDropDummy, "_OnEventDropped")
+	GUISetOnEvent($GUI_EVENT_CLOSE, "_OnEventClose")
+	GUISetOnEvent($GUI_EVENT_PRIMARYDOWN, "_OnEventClickDown")
+	GUISetOnEvent($GUI_EVENT_SECONDARYDOWN, "_OnEventClickDown")
+	GUIRegisterMsg($WM_DROPFILES, "_OnEvent_DROPFILES")
+
+	; Функция WM_GETMINMAXINFO выполняется при перемещении окна, сворачивании и изменении размеров.
+	; Позволяет установить пределы увеличения и уменьшения окна, как по горизонтали, так и по вертикали индивидуально.
+	; А также позицию и размеры развёрнутого состояния. Установочные параметры можно игнорировать указав только необходимые параметры
+	GUIRegisterMsg($WM_GETMINMAXINFO, "_OnEvent_GETMINMAXINFO")
 
 ;~ GUIRegisterMsg($WM_WINDOWPOSCHANGING, "_OnEvent_SIZE")
 
-_SetPositionOnDesktop()
-
-AdlibRegister("_CheckFileListUpdate", 200)
-
-GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
+	AdlibRegister("_CheckFileListUpdate", 200)
+	GUIRegisterMsg($WM_NOTIFY, "WM_NOTIFY")
+EndFunc   ;==>_DefineEvents
 
 
-; if dark theme enabled for apps in windows settings, set dark theme to gui
-If _IsDarkTheme() == True Then
+Func _SetTheme()
 
-	_GUISetDarkTheme($hGui)
-	_GUICtrlAllSetDarkTheme($hGui)
+	If _IsDarkTheme() == True Then
 
-;~ 	; Фон гуишки
-;~ 	GUISetBkColor(0x2a2a2a, $hGui)
-;~ 	; цвет текста
-;~ 	GUICtrlSetColor($Info, 0xffffff)
-;~ 	; Цвет таблицы
-	_GUICtrlListView_SetBkColor($hListView, 0x202020)
-	_GUICtrlListView_SetTextBkColor($hListView, 0x202020)
-;~ 	_GUICtrlListView_SetTextColor($hListView, 0xffffff)
-;~ 	; Цвет подложки, которая ниже ListView
-;~ 	GUICtrlSetBkColor($hGraphic, 0x202020)
-	; Цвет подложки под таблицу
-	GUICtrlSetBkColor($hGraphic, 0x202020)
-;~ 	; Кнопка ОК
-;~ 	GUICtrlSetBkColor($hOkButton, 0x2a2a2a)
-;~ 	GUICtrlSetColor($hOkButton, 0xffffff)
-;~ 	; Кнопка Настройки
-;~ 	GUICtrlSetBkColor($hSettingsButton, 0x2a2a2a)
-;~ 	GUICtrlSetColor($hSettingsButton, 0xffffff)
-;~ 	; Цвет фона текста
-;~ 	GUICtrlSetBkColor($hProgress, 0x202020)
-;~ 	GUICtrlSetBkColor($Info, 0x202020)
+		_GUISetDarkTheme($hGui)
+		_GUICtrlAllSetDarkTheme($hGui)
 
-Else
-;~ 	; Фон гуишки
-;~ 	GUISetBkColor(0xffffff, $hGui)
-;~ 	; Цвет подложки, которая ниже ListView
-	GUICtrlSetBkColor($hGraphic, 0xffffff)
-;~ 	; Цвет фона текста
-;~ 	GUICtrlSetBkColor($hProgress, 0xf0f0f0)
-;~ 	GUICtrlSetBkColor($Info, 0xf0f0f0)
+		; Фон гуишки
+;~ GUISetBkColor(0x2a2a2a, $hGui)
+		; цвет текста
+;~ GUICtrlSetColor($Info, 0xffffff)
 
-EndIf
+		; Цвет таблицы
+		_GUICtrlListView_SetBkColor($hListView, 0x202020)
+		_GUICtrlListView_SetTextBkColor($hListView, 0x202020)
+
+;~ _GUICtrlListView_SetTextColor($hListView, 0xffffff)
+;~ ; Цвет подложки, которая ниже ListView
+;~ GUICtrlSetBkColor($hGraphic, 0x202020)
+
+		; Цвет подложки под таблицу
+		GUICtrlSetBkColor($hGraphic, 0x202020)
+
+;~ ; Кнопка ОК
+;~ GUICtrlSetBkColor($hOkButton, 0x2a2a2a)
+;~ GUICtrlSetColor($hOkButton, 0xffffff)
+;~ ; Кнопка Настройки
+;~ GUICtrlSetBkColor($hSettingsButton, 0x2a2a2a)
+;~ GUICtrlSetColor($hSettingsButton, 0xffffff)
+;~ ; Цвет фона текста
+;~ GUICtrlSetBkColor($hProgress, 0x202020)
+;~ GUICtrlSetBkColor($Info, 0x202020)
+
+	Else
+;~ ; Фон гуишки
+;~ GUISetBkColor(0xffffff, $hGui)
+
+		; Цвет подложки, которая ниже ListView
+		GUICtrlSetBkColor($hGraphic, 0xffffff)
+
+;~ ; Цвет фона текста
+;~ GUICtrlSetBkColor($hProgress, 0xf0f0f0)
+;~ GUICtrlSetBkColor($Info, 0xf0f0f0)
+	EndIf
+
+EndFunc   ;==>_SetTheme
 
 While 1
 	Sleep(100)
@@ -193,7 +215,7 @@ WEnd
 
 
 Func _OnEventClose()
-	ProcessClose($ProcessPid)
+	ProcessClose($iLastProcessPid)
 	DirRemove($sLogPathDir, 1)
 	DirRemove($sImgPath, 1)
 
@@ -473,8 +495,8 @@ Func _CompressFile()
 
 				_SetLabel('Завершено')
 
-				;~ _ArrayDisplay($aFileListData)
-				;~ _ArrayDisplay($aIconMap)
+;~ _ArrayDisplay($aFileListData)
+;~ _ArrayDisplay($aIconMap)
 			EndIf
 		EndIf
 	Next
@@ -505,14 +527,6 @@ EndFunc   ;==>_GetFileSize
 Func _GetFilePatch($sPathFile)
 	Return StringStripWS($sPathFile, 3)
 EndFunc   ;==>_GetFilePatch
-
-Func _GetFileExtension($sPathFile)
-	Return StringRegExpReplace($sPathFile, '^.*\.', '')
-EndFunc   ;==>_GetFileExtension
-
-Func _GetFileName($sPathFile) ; Вернет имя вместе с расширением
-	Return StringRegExpReplace($sPathFile, '^.*\\', '')
-EndFunc   ;==>_GetFileName
 
 Func _GetFilePerePatch($sPathFile) ; Путь до файла, исключив его название и '/'
 	Return StringTrimRight($sPathFile, StringLen(StringRegExpReplace($sPathFile, '^.*\\', '')) + 1)
@@ -711,8 +725,8 @@ Func _OnEvent_GETMINMAXINFO($hWnd, $iMsg, $wParam, $lParam)
 				"int MinTrackSizeX; int MinTrackSizeY;" & _
 				"int MaxTrackSizeX; int MaxTrackSizeY", _
 				$lParam)
-		DllStructSetData($tMINMAXINFO, "MinTrackSizeX", 440) ; минимальные размеры окна
-		DllStructSetData($tMINMAXINFO, "MinTrackSizeY", 157) ; ровно на 3 строки в высоту
+		DllStructSetData($tMINMAXINFO, "MinTrackSizeX", $GUI_MIN_WIDTH)
+		DllStructSetData($tMINMAXINFO, "MinTrackSizeY", $GUI_MIN_HEIGHT)
 
 		_ListViewResize()
 	EndIf
@@ -844,9 +858,12 @@ Func _GetFileList()
 			$sActionName = $aStringSplit[2] ; Moth.CompressionLossless
 		Else
 			$sPathFile = $sFileReadLine
+			$sActionName = '' ; Сбрасываем действие для строк без разделителя
 		EndIf
 
-		_AddToFileListData($sPathFile, $sActionName, $aFileList[$i])
+		If $sActionName <> '' Then
+			_AddToFileListData($sPathFile, $sActionName, $aFileList[$i])
+		EndIf
 
 		FileDelete($aFileList[$i])
 	Next
@@ -1329,7 +1346,7 @@ EndFunc   ;==>_CompressionJfif
 
 Func _CompressionAvif($sFilePath, $nOriginalSize, $sExtension, $sAction)
 	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'magick', _
-			'{patchFile} quiet -define heic:lossless=true -define heic:speed=0 {patchFile}')
+			'{patchFile} -quiet -define heic:avif=true -define heic:lossless=true -define heic:speed=0 {patchFile}')
 EndFunc   ;==>_CompressionAvif
 
 ;=======
@@ -1669,31 +1686,32 @@ EndFunc   ;==>_GetTempPathFileForCompression
 ;===========================================
 
 Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
-	Local $sPatchCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
+	Local $sPatchCompressFile, $iPid
 
+	$sPatchCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
 	$sUtilsKey = StringReplace($sUtilsKey, '{patchFile}', '"' & $sPatchCompressFile & '"', 0)
-
 	_AddLogLine('' & $sUtilsName & '.exe ' & $sUtilsKey)
 
-	If FileCopy($sPathFile, $sPatchCompressFile, 9) Then
-		$ProcessPid = Run(@ScriptDir & '\apps\' & $sUtilsName & '.exe ' & $sUtilsKey, _GetFilePerePatch($sPathFile), @SW_HIDE)
-
-		While 1
-			If Not ProcessExists($ProcessPid) Then ExitLoop
-
-			_SetStepProcess(1)
-
-			_CheckFileListUpdate()
-
-			_UpdateGUI()
-
-			Sleep(50)
-		WEnd
-	Else
-
-		_AddLogLine('[!] Ошибка записи ' & $sPatchCompressFile)
-
+	If Not FileCopy($sPathFile, $sPatchCompressFile, 9) Then
+		_AddLogLine('[!] Ошибка копирования в ' & $sPatchCompressFile)
+		Return SetError(1, 0, $sPatchCompressFile)
 	EndIf
+
+	$iPid = Run('"' &@ScriptDir & '\apps\' & $sUtilsName & '.exe" ' & $sUtilsKey, _GetFilePerePatch($sPathFile), @SW_HIDE)
+	If $iPid = 0 Then
+		_AddLogLine('[!] Ошибка запуска ' & $sUtilsName & '.exe')
+		Return SetError(2, 0, $sPatchCompressFile)
+	EndIf
+
+	$iLastProcessPid = $iPid
+
+	; Ожидаем завершения без рекурсии в очередь
+	While ProcessExists($iPid)
+		_SetStepProcess(1)
+		_UpdateGUI()
+		Sleep(50)
+	WEnd
+
 	Return $sPatchCompressFile
 EndFunc   ;==>_CompressionRun
 
@@ -1733,12 +1751,6 @@ Func _GetNumberFromString($sText)
 	; Оно удаляет все символы, кроме чисел
 	Return StringRegExpReplace($sText, '\D', '')
 EndFunc   ;==>_GetNumberFromString
-
-
-Func _IsDir($sPath)
-	Local $sAttrib = FileGetAttrib($sPath)
-	Return StringInStr($sAttrib, 'D', 2) > 0
-EndFunc   ;==>_IsDir
 
 
 Func _GetFileSizeStr($iBytes)
@@ -1807,11 +1819,11 @@ Func _CheckSingleInstance()
 EndFunc   ;==>_CheckSingleInstance
 
 
-	;~ ; Ранняя проверка поддержки формата
-	;~ If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-	;~ 	_ShowResult($sPathFile, $sFileSize, $STATUS_NOT_SUPPORTED)
-	;~ 	Return
-	;~ EndIf
+;~ ; Ранняя проверка поддержки формата
+;~ If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
+;~ 	_ShowResult($sPathFile, $sFileSize, $STATUS_NOT_SUPPORTED)
+;~ 	Return
+;~ EndIf
 
 
 
@@ -1846,5 +1858,5 @@ Func _IsFormatSupported($sExtensionFile, ByRef $sActionName)
 	Next
 
 	Return False
-EndFunc
+EndFunc   ;==>_IsFormatSupported
 
