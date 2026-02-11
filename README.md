@@ -19,13 +19,14 @@
 
 | Действие | Поддерживаемые форматы |
 |---|---|
-| Сжатие без потерь (lossless)<br><sub>Удаляются все EXIF/мета данные</sub> | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Сжатие без потерь (lossless)<br><sub>Удаляются все EXIF/мета данные</sub> | `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Сжатие без потерь EXIF (lossless)<br><sub>Сохраняются EXIF/мета данные</sub> | `JPE` `JPEG` `JPG` |
 | Сжатие с потерями (lossy)<br><sub>Сжатие без видимых изменений</sub> | `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
 | Сжатие для WEB<br><sub>Более агрессивное сжатие, но щадит градиенты</sub> | `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
 | Изменение палитры<br><sub>Квантование цвета - это способ уменьшить размер<br>изображения за счет уменьшения палитры цветов</sub> | `PNG` |
-| Изменить размер<br><sub>Доп параметры есть в файле конфигурации</sub> | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
+| Изменить размер<br><sub>Доп параметры есть в файле конфигурации</sub> | `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `PNG` `WEBP` |
 | Конвертация в PNG | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `JPE` `JPEG` `JPG` `WEBP` |
-| Конвертация в WEBP | `JFIF` `JPE` `JPEG` `JPG` `PNG` |
+| Конвертация в WEBP | `HEIC` `JFIF` `JPE` `JPEG` `JPG` `PNG` |
 | Конвертация в JPG | `AVIF` `BMP` `GIF` `HEIC` `JFIF` `PNG` `WEBP` |
 
 
@@ -37,3 +38,5 @@
 ## 🤝 Поддержка
 Баг‑репорты и предложения приветствуются.
 Поддержка: [CloudTips](https://pay.cloudtips.ru/p/c4a97b44)
+
+

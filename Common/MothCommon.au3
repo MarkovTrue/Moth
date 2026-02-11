@@ -16,7 +16,7 @@ Global Const _
 		$FORMAT_WEBP = 'webp'
 
 Global Const _
-		$sAppName = 'Moth 1.39', _								; заголовок программы
+		$sAppName = 'Moth 1.40', _								; заголовок программы
 		$sMothINI = FileRead(@ScriptDir & '\Moth.ini'), _				; путь к файлу настроек
 		$sTmpPath = @TempDir & '\Moth', _							; путь к временной папке
 		$sImgPath = @TempDir & '\Moth\images', _					; путь к временной папке картинок
@@ -34,12 +34,13 @@ Global Const $aExtensionWhiteList = [ _
 		$FORMAT_WEBP]
 
 Global Const _
-		$SUPPORT_FORMATS_COLOR_QUANTIZATION = [$FORMAT_PNG], _
-		$SUPPORT_FORMATS_RESIZE = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
-		$SUPPORT_FORMATS_COMPRESSION_LOSSY = [$FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
-		$SUPPORT_FORMATS_COMPRESSION_FOR_WEB = [$FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
-		$SUPPORT_FORMATS_CONVERT_TO_PNG = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_WEBP], _
-		$SUPPORT_FORMATS_CONVERT_TO_WEBP = [$FORMAT_JFIF, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JPG, $FORMAT_PNG], _
+		$SUPPORT_FORMATS_COMPRESSION_LOSSLESS = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_COMPRESSION_LOSSY = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_COMPRESSION_FOR_WEB = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_COLOR_QUANTIZATION = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_RESIZE = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_CONVERT_TO_PNG = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_CONVERT_TO_WEBP = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG], _
 		$SUPPORT_FORMATS_CONVERT_TO_JPG = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_PNG, $FORMAT_WEBP]
 
 
@@ -52,21 +53,21 @@ Func _IsFormatSupported($sExtensionFile, ByRef $sActionName)
 	Local $aSupportedFormats = Null
 
 	If StringInStr($sActionName, "CompressionLossless") Then
-		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
+		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSLESS
 	ElseIf StringInStr($sActionName, "CompressionLossy") Then
 		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_LOSSY
 	ElseIf StringInStr($sActionName, "CompressionWeb") Then
 		$aSupportedFormats = $SUPPORT_FORMATS_COMPRESSION_FOR_WEB
+	ElseIf StringInStr($sActionName, "ColorQuantization") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_COLOR_QUANTIZATION
+	ElseIf StringInStr($sActionName, "Resize") Then
+		$aSupportedFormats = $SUPPORT_FORMATS_RESIZE
 	ElseIf StringInStr($sActionName, "ConvertToPng") Then
 		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_PNG
 	ElseIf StringInStr($sActionName, "ConvertToWebp") Then
 		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_WEBP
 	ElseIf StringInStr($sActionName, "ConvertToJpg") Then
 		$aSupportedFormats = $SUPPORT_FORMATS_CONVERT_TO_JPG
-	ElseIf StringInStr($sActionName, "ColorQuantization") Then
-		$aSupportedFormats = $SUPPORT_FORMATS_COLOR_QUANTIZATION
-	ElseIf StringInStr($sActionName, "Resize") Then
-		$aSupportedFormats = $SUPPORT_FORMATS_RESIZE
 	EndIf
 
 	If $aSupportedFormats = Null Then Return False

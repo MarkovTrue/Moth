@@ -451,22 +451,22 @@ Func _CompressFile()
 			Switch $sActionCommand
 				Case 'loss' ; Сжатие без потерь
 					Switch $sExtensionFile
+						Case 'avif'
+							_CompressionAvif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'bmp'
+							_CompressionBmp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'gif'
+							_CompressionGif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'jfif'
+							_CompressionJfif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						Case 'jpg', 'jpe', 'jpeg'
+							_CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 						Case 'png'
 							_CompressionPng($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 						Case 'webp'
 							_CompressionWebP($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'jpg', 'jpe', 'jpeg'
-							_CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'avif'
-							_CompressionAvif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'jfif'
-							_CompressionJfif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'gif'
-							_CompressionGif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'bmp'
-							_CompressionBmp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-						Case 'heic'
-							_CompressionHeic($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+						;~ Case 'heic'
+						;~ 	_CompressionHeic($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 						Case Else
 							_UpdateGUI()
 							_ShowResult($sPathFile, $sFileSize, 0, _IsDir($sPathFile) ? $STATUS_SKIPPED_FOLDER : $STATUS_SKIPPED)
@@ -948,20 +948,43 @@ Func _ColorQuantization($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sActionCommand, $iStatus
+	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sActionCommand, $sSourceFile
 	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command')
 
-	$sTempPath = _CompressionRun('truepng', '/cq c=' & _GetNumberFromString($sActionCommand) & ' {patchFile}', $sPathFile, $sExtensionFile)
+	; Определение исходного файла
+	Switch $sExtensionFile
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
+			$sSourceFile = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
+
+		Case $FORMAT_PNG, $FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_WEBP
+			$sSourceFile = $sPathFile
+
+		Case Else
+			_UpdateGUI()
+			_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
+			Return
+	EndSwitch
+
+	; Квантизация цвета
+	$sTempPath = _CompressionRun('magick', '{patchFile} -quiet -dither FloydSteinberg -colors ' & _GetNumberFromString($sActionCommand) & ' {patchFile}', $sSourceFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $sFileSize, 0, $STATUS_APP_ERROR)
 		Return
 	EndIf
 
-	$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sTempPath, $sExtensionFile)
-	If @error Then
-		_ShowResult($sPathFile, $sFileSize, 0, $STATUS_APP_ERROR)
-		Return
-	EndIf
+	; Оптимизация (только для форматов поддерживаемых pingo)
+	;~ Switch $sExtensionFile
+	;~ 	Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_PNG, $FORMAT_WEBP
+	;~ 		$sWinnerPath = _CompressionRun('pingo', '-s3 {patchFile}', $sTempPath, $sExtensionFile)
+	;~ 		If @error Then
+	;~ 			_ShowResult($sPathFile, $sFileSize, 0, $STATUS_APP_ERROR)
+	;~ 			Return
+	;~ 		EndIf
+
+	;~ 	Case Else
+			; Для остальных форматов используем результат magick
+			$sWinnerPath = $sTempPath
+	;~ EndSwitch
 
 	$sWinnerSize = FileGetSize($sWinnerPath)
 	If $sWinnerSize <= 0 Then
@@ -969,8 +992,9 @@ Func _ColorQuantization($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	; Сохранение результата
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ColorQuantization
 
 ;==============
@@ -984,7 +1008,7 @@ Func _ResizePercent($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sActionCommand, $iStatus
+	Local $sWinnerPath, $sWinnerSize, $sActionCommand
 	Local $sPercent, $sFilter = 0
 
 	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command') ; percent_50_0
@@ -1009,8 +1033,8 @@ Func _ResizePercent($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ResizePercent
 
 ;==============
@@ -1024,7 +1048,7 @@ Func _ResizePixel($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sActionCommand, $aLineSplit, $iStatus
+	Local $sWinnerPath, $sWinnerSize, $sActionCommand, $aLineSplit
 	Local $sUtilParams, $sWidth = 1, $sHeight = 1, $sFilter = 0
 
 	$sActionCommand = _IniString_Read($sMothINI, $sActionName, 'Command') ; resize_1000_1000_0_0
@@ -1082,8 +1106,8 @@ Func _ResizePixel($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ResizePixel
 
 ;==============
@@ -1097,59 +1121,56 @@ Func _ConvertToPng($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFilePng, $sPathFileJpg, $sRunKey
+	Local $sPathFilePng, $sWinnerPath, $sWinnerSize, $sTool, $sCommand, $sSourceFile
 
-	If $sExtensionFile = 'webp' Then
+	; Определение инструмента и команды конвертации
+	Switch $sExtensionFile
+		Case $FORMAT_AVIF, $FORMAT_BMP, $FORMAT_JFIF
+			$sTool = 'magick'
+			$sPathFilePng = _GetTempPathFileForCompression($sTool, $FORMAT_PNG)
+			$sCommand = '{patchFile} -quiet {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		; Это путь файла во временной папке с новым расширением
-		$sPathFilePng = _GetTempPathFileForCompression('dwebp', $FORMAT_PNG)
-		$sTempPath = _CompressionRun('dwebp', '-mt {patchFile} -o "' & $sPathFilePng & '"', $sPathFile, $sExtensionFile)
-		FileDelete($sTempPath)
+		Case $FORMAT_GIF
+			$sTool = 'magick'
+			$sPathFilePng = _GetTempPathFileForCompression($sTool, $FORMAT_PNG)
+			$sCommand = '{patchFile}[0] -quiet {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sPathFilePng, $FORMAT_PNG)
-		FileDelete($sPathFilePng)
-		$sWinnerSize = FileGetSize($sWinnerPath)
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG
+			$sTool = 'magick'
+			$sPathFilePng = _GetTempPathFileForCompression($sTool, $FORMAT_PNG)
+			$sCommand = '{patchFile} -quiet {patchFileOut}'
+			$sSourceFile = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
 
-		If Not _FileSave($sWinnerPath, $sPathFile, $FORMAT_PNG, $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
+		Case $FORMAT_WEBP
+			$sTool = 'dwebp'
+			$sPathFilePng = _GetTempPathFileForCompression($sTool, $FORMAT_PNG)
+			$sCommand = '-mt {patchFile} -o {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-	ElseIf $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'avif' Or $sExtensionFile = 'jfif' Or $sExtensionFile = 'gif' Or $sExtensionFile = 'bmp' Or $sExtensionFile = 'heic' Then
+		Case $FORMAT_HEIC
+			$sTool = 'magick'
+			$sPathFilePng = _GetTempPathFileForCompression($sTool, $FORMAT_PNG)
+			$sCommand = '{patchFile} -quiet -profile {sRGB.icc} -strip {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
-			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
-		Else
-			$sPathFileJpg = $sPathFile
-		EndIf
+		Case Else
+			_UpdateGUI()
+			_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
+			Return
+	EndSwitch
 
-		; Это путь файла во временной папке с новым расширением
-		$sPathFilePng = _GetTempPathFileForCompression('magick', 'png')
-		; Для Gif команда немного отличается, мы забираем только первый фрейм
-		If $sExtensionFile = 'gif' Then
-			$sRunKey = '{patchFile}[0] -quiet "' & $sPathFilePng & '"'
-		Else
-			$sRunKey = '{patchFile} -quiet "' & $sPathFilePng & '"'
-		EndIf
+	; Конвертация
+	$sPathFilePng = _ConvertRun($sTool, $sCommand, $sSourceFile, $sPathFilePng)
+	; Оптимизация
+	$sWinnerPath = _CompressionRun('pingo', '-s3 {patchFile}', $sPathFilePng, $FORMAT_PNG)
+	FileDelete($sPathFilePng)
 
-		$sTempPath = _CompressionRun('magick', $sRunKey, $sPathFileJpg, $sExtensionFile)
-		FileDelete($sTempPath)
-
-		$sWinnerPath = _CompressionRun('pingo', '-s4 {patchFile}', $sPathFilePng, 'png')
-		FileDelete($sPathFilePng)
-		$sWinnerSize = FileGetSize($sWinnerPath)
-
-		If Not _FileSave($sWinnerPath, $sPathFile, 'png', $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
-
-	Else
-		_UpdateGUI()
-		_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SKIPPED)
-	EndIf
+	; Сохранение результата
+	$sWinnerSize = FileGetSize($sWinnerPath)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $FORMAT_PNG, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ConvertToPng
 
 ;=================
@@ -1163,36 +1184,56 @@ Func _ConvertToWebp($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFileWebp
+	Local $sPathFileWebp, $sWinnerPath, $sWinnerSize, $sTool, $sCommand, $sSourceFile
 
-	If $sExtensionFile = 'png' Or $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
+	; Определение инструмента и команды конвертации
+	Switch $sExtensionFile
+		Case $FORMAT_AVIF, $FORMAT_BMP, $FORMAT_JFIF
+			$sTool = 'magick'
+			$sPathFileWebp = _GetTempPathFileForCompression($sTool, $FORMAT_WEBP)
+			$sCommand = '{patchFile} -quiet {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		If $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Or $sExtensionFile = 'jfif' Then
-			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
-		Else
-			$sPathFileJpg = $sPathFile
-		EndIf
+		Case $FORMAT_GIF
+			$sTool = 'magick'
+			$sPathFileWebp = _GetTempPathFileForCompression($sTool, $FORMAT_WEBP)
+			$sCommand = '{patchFile}[0] -quiet {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		; Это путь файла во временной папке с новым расширением
-		$sPathFileWebp = _GetTempPathFileForCompression('cwebp', $FORMAT_WEBP)
-		$sTempPath = _CompressionRun('cwebp', '-lossless -mt {patchFile} -o "' & $sPathFileWebp & '"', $sPathFileJpg, $sExtensionFile)
-		FileDelete($sTempPath)
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG
+			$sTool = 'cwebp'
+			$sPathFileWebp = _GetTempPathFileForCompression($sTool, $FORMAT_WEBP)
+			$sCommand = '-lossless -mt {patchFile} -o {patchFileOut}'
+			$sSourceFile = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
 
-		; Сожмём получившийся файл
-		$sWinnerPath = _CompressionRun('pingo', '-webp {patchFile}', $sPathFileWebp, $FORMAT_WEBP)
-		FileDelete($sPathFileWebp)
-		$sWinnerSize = FileGetSize($sWinnerPath)
+		Case $FORMAT_PNG
+			$sTool = 'cwebp'
+			$sPathFileWebp = _GetTempPathFileForCompression($sTool, $FORMAT_WEBP)
+			$sCommand = '-lossless -mt {patchFile} -o {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-		If Not _FileSave($sWinnerPath, $sPathFile, $FORMAT_WEBP, $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
+		Case $FORMAT_HEIC
+			$sTool = 'magick'
+			$sPathFileWebp = _GetTempPathFileForCompression($sTool, $FORMAT_WEBP)
+			$sCommand = '{patchFile} -quiet -profile {sRGB.icc} -strip {patchFileOut}'
+			$sSourceFile = $sPathFile
 
-	Else
-		_UpdateGUI()
-		_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
-	EndIf
+		Case Else
+			_UpdateGUI()
+			_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
+			Return
+	EndSwitch
+
+	; Конвертация
+	$sPathFileWebp = _ConvertRun($sTool, $sCommand, $sSourceFile, $sPathFileWebp)
+	; Оптимизация
+	$sWinnerPath = _CompressionRun('pingo', '-webp {patchFile}', $sPathFileWebp, $FORMAT_WEBP)
+	FileDelete($sPathFileWebp)
+
+	; Сохранение результата
+	$sWinnerSize = FileGetSize($sWinnerPath)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $FORMAT_WEBP, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ConvertToWebp
 
 ;================
@@ -1200,60 +1241,55 @@ EndFunc   ;==>_ConvertToWebp
 ;================
 
 Func _ConvertToJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
+	; Проверка поддержки формата
 	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
+		Local $bStatus = $STATUS_NOT_SUPPORTED
+		If $sExtensionFile = $FORMAT_JPG Or $sExtensionFile = $FORMAT_JPE Or $sExtensionFile = $FORMAT_JPEG Then $bStatus = $STATUS_SKIPPED
 		_UpdateGUI()
-		Local $iStatus = $STATUS_NOT_SUPPORTED
-		if $sExtensionFile = 'jpg' Or $sExtensionFile = 'jpe' Or $sExtensionFile = 'jpeg' Then $iStatus = $STATUS_SKIPPED
-		_ShowResult($sPathFile, $sFileSize, 0, $iStatus)
+		_ShowResult($sPathFile, $sFileSize, 0, $bStatus)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sTempPath, $sPathFileJpg, $sRunKey
+	Local $sPathFileJpg, $sWinnerPath, $sWinnerSize, $sTool, $sCommand
 
-	If $sExtensionFile = $FORMAT_WEBP Then
+	; Определение инструмента и команды конвертации
+	Switch $sExtensionFile
+		Case $FORMAT_AVIF, $FORMAT_BMP, $FORMAT_JFIF, $FORMAT_PNG
+			$sTool = 'magick'
+			$sPathFileJpg = _GetTempPathFileForCompression($sTool, $FORMAT_JPG)
+			$sCommand = '{patchFile} -quiet -background white -alpha remove -alpha off {patchFileOut}'
 
-		; Это путь файла во временной папке с новым расширением
-		$sPathFileJpg = _GetTempPathFileForCompression('dwebp', $FORMAT_JPG)
-		$sTempPath = _CompressionRun('dwebp', '-mt {patchFile} -o "' & $sPathFileJpg & '"', $sPathFile, $sExtensionFile)
-		FileDelete($sTempPath)
+		Case $FORMAT_GIF
+			$sTool = 'magick'
+			$sPathFileJpg = _GetTempPathFileForCompression($sTool, $FORMAT_JPG)
+			$sCommand = '{patchFile}[0] -quiet {patchFileOut}'
 
-		$sWinnerPath = _CompressionRun('pingo', '-lossless -s4 {patchFile}', $sPathFileJpg, $FORMAT_JPG)
-		FileDelete($sPathFileJpg)
-		$sWinnerSize = FileGetSize($sWinnerPath)
+		Case $FORMAT_WEBP
+			$sTool = 'dwebp'
+			$sPathFileJpg = _GetTempPathFileForCompression($sTool, $FORMAT_JPG)
+			$sCommand = '-mt {patchFile} -o {patchFileOut}'
 
-		If Not _FileSave($sWinnerPath, $sPathFile, $FORMAT_JPG, $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
+		Case $FORMAT_HEIC
+			$sTool = 'magick'
+			$sPathFileJpg = _GetTempPathFileForCompression($sTool, $FORMAT_JPG)
+			$sCommand = '{patchFile} -quiet -profile {sRGB.icc} -strip {patchFileOut}'
 
-	ElseIf $sExtensionFile = $FORMAT_PNG Or $sExtensionFile = 'gif' Or $sExtensionFile = 'avif' Or $sExtensionFile = 'jfif' Or $sExtensionFile = 'bmp' Or $sExtensionFile = 'heic' Then
+		Case Else
+			_UpdateGUI()
+			_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
+			Return
+	EndSwitch
 
-		; Это путь файла во временной папке с новым расширением
-		$sPathFileJpg = _GetTempPathFileForCompression('magick', $FORMAT_JPG)
-		; Для Gif команда немного отличается, мы забираем только первый фрейм
-		If $sExtensionFile = 'gif' Then
-			$sRunKey = '{patchFile}[0] -quiet -background white -alpha remove -alpha off "' & $sPathFileJpg & '"'
-		Else
-			$sRunKey = '{patchFile} -quiet -background white -alpha remove -alpha off "' & $sPathFileJpg & '"'
-		EndIf
-		$sTempPath = _CompressionRun('magick', $sRunKey, $sPathFile, $sExtensionFile)
-		FileDelete($sTempPath)
+	; Конвертация
+	$sPathFileJpg = _ConvertRun($sTool, $sCommand, $sPathFile, $sPathFileJpg)
+	; Оптимизация
+	$sWinnerPath = _CompressionRun('pingo', '-lossless -s3 {patchFile}', $sPathFileJpg, $FORMAT_JPG)
+	FileDelete($sPathFileJpg)
 
-		$sWinnerPath = _CompressionRun('pingo', '-lossless -s3 {patchFile}', $sPathFileJpg, $FORMAT_JPG)
-		FileDelete($sPathFileJpg)
-		$sWinnerSize = FileGetSize($sWinnerPath)
-
-		If Not _FileSave($sWinnerPath, $sPathFile, $FORMAT_JPG, $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
-
-	Else
-		_UpdateGUI()
-		_ShowResult($sPathFile, $sFileSize, 0, $STATUS_SKIPPED)
-	EndIf
+	; Сохранение результата
+	$sWinnerSize = FileGetSize($sWinnerPath)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $FORMAT_JPG, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_ConvertToJpg
 
 
@@ -1311,7 +1347,7 @@ EndFunc   ;==>_AutorotateJpg
 ;=======
 
 Func _CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-	Local $sWinnerPath, $sWinnerSize, $sRunKey, $sPathFileJpg, $iStatus
+	Local $sWinnerPath, $sWinnerSize, $sRunKey, $sPathFileJpg
 	Local $bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
 	Local $bToProgressive = _IniString_Read($sMothINI, $sActionName, 'ToProgressive') = 1
 
@@ -1328,7 +1364,7 @@ Func _CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 	; Второй вариант: Pingo (если не нужны Exif и Progressive) или ect
 	Local $sPath2, $nSize2
 	If Not $bSaveExif And Not $bToProgressive Then
-		$sPath2 = _CompressionRun('pingo', '-lossless -s4 {patchFile}', $sPathFileJpg, $sExtensionFile)
+		$sPath2 = _CompressionRun('pingo', '-lossless -s3 {patchFile}', $sPathFileJpg, $sExtensionFile)
 	Else
 		$sRunKey = '-9 -quiet --strict --mt-deflate --mt-file'
 		If Not $bSaveExif Then $sRunKey &= ' -strip'
@@ -1375,8 +1411,8 @@ Func _CompressionJpg($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 	EndIf
 
 	; Сохраняем улучшенный файл
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_CompressionJpg
 
 
@@ -1385,28 +1421,20 @@ EndFunc   ;==>_CompressionJpg
 ;=======
 
 Func _CompressionJfif($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-	Local $sWinnerPath, $sWinnerSize, $bSaveExif = False, $bToProgressive = False
+	Local $sWinnerPath, $sWinnerSize, $bToProgressive = False
 
-	$bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
 	$bToProgressive = _IniString_Read($sMothINI, $sActionName, 'ToProgressive') = 1
 
-	; Если будем чистить Exif инфу, надо убедиться, что изображение не требует поворота
-	; При очистке Exif - удалится инфа об ориентации картинки, и просмотрщики перестанут её автоматически поворачивать
-	; Значит перед стиранием надо самим повернуть картинку
-	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
+	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, False)
 
-	$sRunKey = '{patchFile} --quiet --force -w ' & $nProcCount
-	If $bSaveExif = False Then $sRunKey &= ' --strip-all'
+	$sRunKey = '{patchFile} --quiet --force -w ' & $nProcCount & ' --strip-all'
 	If $bToProgressive = True Then $sRunKey &= ' --all-progressive'
 	$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
 	$sWinnerSize = FileGetSize($sWinnerPath)
 
 	If $sWinnerSize < $sFileSize Then
-		If Not _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) Then
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $STATUS_SAVE_ERROR)
-		Else
-			_ShowResult($sPathFile, $sFileSize, $sWinnerSize)
-		EndIf
+		Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+		_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 		Return
 	EndIf
 
@@ -1422,17 +1450,8 @@ EndFunc   ;==>_CompressionJfif
 
 Func _CompressionAvif($sFilePath, $nOriginalSize, $sExtension, $sAction)
 	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'magick', _
-			'{patchFile} -quiet -define heic:avif=true -define heic:lossless=true -define heic:speed=0 {patchFile}')
+			'{patchFile} -quiet -define heic:lossless=true -define heic:speed=0 {patchFile}')
 EndFunc   ;==>_CompressionAvif
-
-;=======
-; HEIC
-;=======
-
-Func _CompressionHeic($sFilePath, $nOriginalSize, $sExtension, $sAction)
-	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'avifenc', _
-			'--lossless {patchFile} -o {patchFile}')
-EndFunc   ;==>_CompressionHeic
 
 ;=======
 ; GIF
@@ -1466,7 +1485,7 @@ EndFunc   ;==>_CompressionPng
 ;=======
 
 Func _CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, $sUtilName, $sUtilParams)
-	Local $sCompressedPath, $nCompressedSize, $iStatus
+	Local $sCompressedPath, $nCompressedSize
 
 	$sCompressedPath = _CompressionRun($sUtilName, $sUtilParams, $sFilePath, $sExtension)
 	If @error Then
@@ -1489,8 +1508,8 @@ Func _CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, $sUti
 	EndIf
 
 	; Сохраняем улучшенный файл
-	$iStatus = _FileSave($sCompressedPath, $sFilePath, $sExtension, $sAction) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sFilePath, $nOriginalSize, $nCompressedSize, $iStatus)
+	Local $bSaved = _FileSave($sCompressedPath, $sFilePath, $sExtension, $sAction)
+	_ShowResult($sFilePath, $nOriginalSize, $nCompressedSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_CompressionHelper
 
 ;=======
@@ -1498,7 +1517,7 @@ EndFunc   ;==>_CompressionHelper
 ;=======
 
 Func _CompressionWebP($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
-	Local $sWinnerPath, $sWinnerSize, $iStatus
+	Local $sWinnerPath, $sWinnerSize
 
 	; Сравниваем два варианта сжатия и выбираем лучший
 	Local $sPath1 = _CompressionRun('pingo', '-webp -lossless {patchFile}', $sPathFile, $sExtensionFile)
@@ -1530,8 +1549,8 @@ Func _CompressionWebP($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 	EndIf
 
 	; Сохраняем улучшенный файл
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_CompressionWebP
 
 ;=============================
@@ -1600,26 +1619,27 @@ Func _CompressionLossy($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sRunKey, $sPathFileJpg
-	Local $bSaveExif = False, $iStatus
-
-	$bSaveExif = _IniString_Read($sMothINI, $sActionName, 'SaveExif') = 1
+	Local $sWinnerPath = '', $sWinnerSize = 0, $sRunKey, $sPathFileJpg
 
 	; Определяем параметры сжатия для каждого формата
 	Switch $sExtensionFile
-		Case 'jpg', 'jpe', 'jpeg', 'jfif'
-			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, $bSaveExif)
-			$sRunKey = '{patchFile} --quiet --force --max=92 --all-progressive -w ' & $nProcCount
-			If Not $bSaveExif Then $sRunKey &= ' --strip-all'
+		;~ Case 'heic'
+		;~ 	$sWinnerPath = _CompressionRun('magick', '{patchFile} -quality 92 {patchFile}', $sPathFile, $sExtensionFile)
+		Case $FORMAT_AVIF, $FORMAT_BMP
+			$sWinnerPath = _CompressionRun('magick', '{patchFile} -quiet -quality 92 {patchFile}', $sPathFile, $sExtensionFile)
+
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
+			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, False)
+			$sRunKey = '{patchFile} --quiet --force --max=92 --all-progressive -w ' & $nProcCount & ' --strip-all'
 			$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
 
-		Case 'png'
+		Case $FORMAT_PNG
 			$sWinnerPath = _CompressionRun('pingo', '{patchFile}', $sPathFile, $sExtensionFile)
 
-		Case 'gif'
+		Case $FORMAT_GIF
 			$sWinnerPath = _CompressionRun('gifsicle', '-w -j --no-conserve-memory --lossy=100 -o {patchFile} -O3 --no-comments --no-extensions --no-names {patchFile}', $sPathFile, $sExtensionFile)
 
-		Case 'webp'
+		Case $FORMAT_WEBP
 			; Для webp сравниваем два варианта сжатия и выбираем лучший
 			Local $sPath1 = _CompressionRun('cwebp', '-q 100 -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
 			Local $nSize1 = @error ? 0 : FileGetSize($sPath1)
@@ -1664,8 +1684,8 @@ Func _CompressionLossy($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 	EndIf
 
 	; Сохраняем улучшенный файл
-	$iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_CompressionLossy
 
 
@@ -1681,22 +1701,25 @@ Func _CompressionForWeb($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	Local $sWinnerPath, $sWinnerSize, $sRunKey, $sPathFileJpg
+	Local $sWinnerPath = '', $sWinnerSize = 0, $sRunKey, $sPathFileJpg
 
 	; Определяем параметры сжатия для каждого формата
 	Switch $sExtensionFile
-		Case 'jpg', 'jpe', 'jpeg', 'jfif'
+		Case $FORMAT_AVIF, $FORMAT_BMP
+			$sWinnerPath = _CompressionRun('magick', '{patchFile} -quiet -quality 80 {patchFile}', $sPathFile, $sExtensionFile)
+
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
 			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, False)
 			$sRunKey = '{patchFile} --quiet --force --max=75 --all-progressive --strip-all -w ' & $nProcCount
 			$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
 
-		Case 'png'
-			$sWinnerPath = _CompressionRun('pingo', '-quality=75 -s4 {patchFile}', $sPathFile, $sExtensionFile)
+		Case $FORMAT_PNG
+			$sWinnerPath = _CompressionRun('pingo', '-quality=75 -s3 {patchFile}', $sPathFile, $sExtensionFile)
 
-		Case 'webp'
+		Case $FORMAT_WEBP
 			$sWinnerPath = _CompressionRun('cwebp', '-q 75 -mt {patchFile} -o {patchFile}', $sPathFile, $sExtensionFile)
 
-		Case 'gif'
+		Case $FORMAT_GIF
 			$sWinnerPath = _CompressionRun('gifsicle', '-w -j --no-conserve-memory --lossy=75 -o {patchFile} -O3 --no-comments --no-extensions --no-names {patchFile}', $sPathFile, $sExtensionFile)
 	EndSwitch
 
@@ -1722,8 +1745,8 @@ Func _CompressionForWeb($sPathFile, $sFileSize, $sExtensionFile, $sActionName)
 	EndIf
 
 	; Сохраняем улучшенный файл
-	Local $iStatus = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName) ? 0 : $STATUS_SAVE_ERROR
-	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $iStatus)
+	Local $bSaved = _FileSave($sWinnerPath, $sPathFile, $sExtensionFile, $sActionName)
+	_ShowResult($sPathFile, $sFileSize, $sWinnerSize, $bSaved ? 0 : $STATUS_SAVE_ERROR)
 EndFunc   ;==>_CompressionForWeb
 
 
@@ -1741,10 +1764,10 @@ Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
 
 	$sPatchCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
 	$sUtilsKey = StringReplace($sUtilsKey, '{patchFile}', '"' & $sPatchCompressFile & '"', 0)
-	_AddLogLine('' & $sUtilsName & '.exe ' & $sUtilsKey)
+	_AddLogLine('_CompressionRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
 
 	If Not FileCopy($sPathFile, $sPatchCompressFile, 9) Then
-		_AddLogLine('[!] Ошибка копирования в ' & $sPatchCompressFile)
+		_AddLogLine('[!] Ошибка копирования ' & $sUtilsName & '.exe ' & $sPathFile & ' -> ' & $sPatchCompressFile)
 		Return SetError(1, 0, $sPatchCompressFile)
 	EndIf
 
@@ -1763,8 +1786,43 @@ Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
 		Sleep(50)
 	WEnd
 
+	If Not FileExists($sPatchCompressFile) Then
+		_AddLogLine('[!] Ошибка ' & $sUtilsName & '.exe, нет итогового файла ' & $sPatchCompressFile)
+		Return SetError(3, 0, $sPatchCompressFile)
+	EndIf
+
 	Return $sPatchCompressFile
 EndFunc   ;==>_CompressionRun
+
+
+Func _ConvertRun($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
+	_AddLogLine('_ConvertRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
+	$sUtilsKey = StringReplace($sUtilsKey, '{patchFile}', '"' & $sPathFile & '"', 0)
+	$sUtilsKey = StringReplace($sUtilsKey, '{patchFileOut}', '"' & $sPathFileOut & '"', 0)
+	$sUtilsKey = StringReplace($sUtilsKey, '{sRGB.icc}', '"' & @ScriptDir & '\apps\sRGB.icc"', 0)
+	_AddLogLine('_ConvertRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
+	Local $iPid = Run('"' & @ScriptDir & '\apps\' & $sUtilsName & '.exe" ' & $sUtilsKey, _GetFilePerePatch($sPathFile), @SW_HIDE)
+	If $iPid = 0 Then
+		_AddLogLine('[!] Ошибка запуска ' & $sUtilsName & '.exe')
+		Return SetError(2, 0, $sPathFileOut)
+	EndIf
+
+	$iLastProcessPid = $iPid
+
+	; Ожидаем завершения без рекурсии в очередь
+	While ProcessExists($iPid)
+		_SetStepProcess(1)
+		_UpdateGUI()
+		Sleep(50)
+	WEnd
+
+	If Not FileExists($sPathFileOut) Then
+		_AddLogLine('[!] Ошибка ' & $sUtilsName & '.exe, нет итогового файла ' & $sPathFileOut)
+		Return SetError(3, 0, $sPathFileOut)
+	EndIf
+
+	Return $sPathFileOut
+EndFunc   ;==>_ConvertRun
 
 
 Func _AddLogLine($sTmp)
