@@ -1,6 +1,7 @@
 #include-once
 
 #include <Array.au3>
+#include <FileConstants.au3>
 #include <IniString.au3>
 
 Global Const _
@@ -17,7 +18,7 @@ Global Const _
 
 Global Const _
 		$sAppName = 'Moth 1.40', _								; заголовок программы
-		$sMothINI = FileRead(@ScriptDir & '\Moth.ini'), _				; путь к файлу настроек
+		$sMothINI = _ReadFileUTF8(@ScriptDir & '\Moth.ini'), _			; путь к файлу настроек
 		$sTmpPath = @TempDir & '\Moth', _							; путь к временной папке
 		$sImgPath = @TempDir & '\Moth\images', _					; путь к временной папке картинок
 		$sLogPathDir = @TempDir & '\Moth\logs', _					; путь к папке списка заданий
@@ -145,3 +146,15 @@ Func _IsDir($sTmp)
 	$sTmp = FileGetAttrib($sTmp & "\")
 	Return StringInStr($sTmp, 'D', 2) > 0
 EndFunc   ;==>_IsDir
+
+
+; Чтение файла как UTF-8 независимо от наличия BOM.
+; FileRead без флага определяет UTF-8 только по BOM; если BOM нет,
+; AutoIt читает байты как ANSI (CP1251) и кириллица превращается в крякозябры.
+Func _ReadFileUTF8($sPath)
+	Local $hFile = FileOpen($sPath, $FO_UTF8)
+	If $hFile = -1 Then Return ''
+	Local $sContent = FileRead($hFile)
+	FileClose($hFile)
+	Return $sContent
+EndFunc   ;==>_ReadFileUTF8
