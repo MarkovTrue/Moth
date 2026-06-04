@@ -17,7 +17,7 @@ Opt("GUIOnEventMode", 1) ; Включаем режим OnEvent
 #include <WinAPI.au3>
 #include <WindowsConstants.au3>
 
-#include <Include\GUIDarkMode.au3>
+#include <Include\GUIDarkTheme.au3>
 #include <Include\ImageGetInfo.au3>
 
 #include <Common\ExplorerIcon.au3>
@@ -63,6 +63,19 @@ Global $ContextMenuItem1, $ContextMenuItem2, $hOkButton, $hDropDummy, $ContextMe
 Global $Timer, $Secs, $Mins, $Hour, $bTimerState = True, $hImageIcons
 Global $iGuiWidth = 527, $iGuiHeight = 167, $nItemFileColumnWidth, $isComplete = False
 Global $nLastUpdatedIndex = 0 ; Индекс последнего успешно обновленного элемента
+
+; Цвета тёмного скина таблицы (подобрано под референс; точная подстройка здесь).
+; Значения - оттенки серого, поэтому одинаковы в RGB и BGR (COLORREF).
+Global Const $iLV_HeaderBk   = 0x2D2D2D ; фон заголовка (светло-серый, заметно светлее строк)
+Global Const $iLV_HeaderText = 0xD4D4D4 ; текст заголовка (светло-серый)
+Global Const $iLV_RowBk      = 0x212121 ; фон чётных строк и пустой области таблицы
+Global Const $iLV_RowBkAlt   = 0x292929 ; фон нечётных строк (чередование)
+Global Const $iLV_RowText    = 0xDCDCDC ; цвет текста строк
+Global Const $iLV_RowSel     = 0x4D4D4D ; фон выделенной строки
+Global Const $iLV_GridLine   = 0x191919 ; линии сетки (верт./гориз.) и рамка заголовка
+
+; Сабклассинг ListView для перерисовки заголовка (его NM_CUSTOMDRAW идёт родителю-ListView)
+Global $g_hLVHeader = 0, $g_pLVSubclass = 0
 Global $bStarting = False
 Global $aIconMap[0][2]
 
@@ -168,8 +181,11 @@ Func _SetTheme()
 
 	If _IsDarkTheme() == True Then
 
-		_GUISetDarkTheme($hGui)
-		_GUICtrlAllSetDarkTheme($hGui)
+		; Рамку контролов (ListView) рисуем цветом фона GUI (0x202020), чтобы она сливалась с фоном
+		_GUIDarkTheme_CtrlBorderSet(False)
+
+		_GUIDarkTheme_GUISetDarkTheme($hGui)
+		_GUIDarkTheme_GUICtrlAllSetDarkTheme($hGui)
 
 		; Фон гуишки
 ;~ GUISetBkColor(0x2a2a2a, $hGui)
@@ -177,15 +193,23 @@ Func _SetTheme()
 ;~ GUICtrlSetColor($Info, 0xffffff)
 
 		; Цвет таблицы
-		_GUICtrlListView_SetBkColor($hListView, 0x202020)
-		_GUICtrlListView_SetTextBkColor($hListView, 0x202020)
+		_GUICtrlListView_SetBkColor($hListView, $iLV_RowBk)
+		_GUICtrlListView_SetTextBkColor($hListView, $iLV_RowBk)
+
+		; Сабклассируем ListView, чтобы перерисовать заголовок (его NM_CUSTOMDRAW идёт сюда, а не в WM_NOTIFY окна)
+		If $g_pLVSubclass = 0 Then
+			$g_hLVHeader = _GUICtrlListView_GetHeader($hListView)
+			$g_pLVSubclass = DllCallbackRegister("_LV_HeaderSubclass", "lresult", "hwnd;uint;wparam;lparam;uint_ptr;dword_ptr")
+			_WinAPI_SetWindowSubclass(GUICtrlGetHandle($hListView), DllCallbackGetPtr($g_pLVSubclass), 1000, 0)
+			OnAutoItExitRegister("_LV_SubclassCleanup")
+		EndIf
 
 ;~ _GUICtrlListView_SetTextColor($hListView, 0xffffff)
 ;~ ; Цвет подложки, которая ниже ListView
 ;~ GUICtrlSetBkColor($hGraphic, 0x202020)
 
 		; Цвет подложки под таблицу
-		GUICtrlSetBkColor($hGraphic, 0x202020)
+		GUICtrlSetBkColor($hGraphic, $iLV_RowBk)
 
 ;~ ; Кнопка ОК
 ;~ GUICtrlSetBkColor($hOkButton, 0x2a2a2a)
@@ -293,70 +317,39 @@ EndFunc   ;==>_OnEventDropped
 Func WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
 	#forceref $hWnd, $iMsg, $iwParam
 
-	Local $hDCBrush = _WinAPI_GetStockObject($DC_BRUSH)
-	Local $hDCPen = _WinAPI_GetStockObject($DC_PEN)
-	Local $tagNMCUSTOMDRAW = "struct;" & $tagNMHDR & ";dword dwDrawStage;handle hdc;" & _
-			$tagRECT & ";dword_ptr dwItemSpec;uint uItemState;lparam lItemlParam;endstruct"
-	Local $iLastCol
 	Local $iIndex
 
 	Local $tNMHDR = DllStructCreate($tagNMHDR, $ilParam)
 	Local $hWndFrom = HWnd(DllStructGetData($tNMHDR, "hWndFrom"))
 	Local $iCode = DllStructGetData($tNMHDR, "Code")
 	Local $hWndListView = IsHWnd($hListView) ? $hListView : GUICtrlGetHandle($hListView)
-	Local $hHeader = _GUICtrlListView_GetHeader($hWndListView)
 
 	Switch $hWndFrom
-		Case $hHeader
-			If $iCode = $NM_CUSTOMDRAW Then
-				Local $tNMCD = DllStructCreate($tagNMCUSTOMDRAW, $ilParam)
-				Local $dwStage = DllStructGetData($tNMCD, "dwDrawStage")
-
-				Switch $dwStage
-					Case $CDDS_PREPAINT
-						$iLastCol = _GUICtrlHeader_GetItemCount($hHeader) - 2
-						Return $CDRF_NOTIFYITEMDRAW
-
-					Case $CDDS_ITEMPREPAINT
-						$iIndex = DllStructGetData($tNMCD, "dwItemSpec")
-						Local $hDC = DllStructGetData($tNMCD, "hdc")
-						Local $tRect = DllStructCreate($tagRECT)
-						For $i = 0 To 3
-							DllStructSetData($tRect, $i + 1, DllStructGetData($tNMCD, 6 + $i))
-						Next
-
-						_WinAPI_SelectObject($hDC, $hDCBrush)
-						_WinAPI_SelectObject($hDC, $hDCPen)
-						_WinAPI_SetBkMode($hDC, 1)
-
-						If _IsDarkTheme() Then
-							_WinAPI_SetDCBrushColor($hDC, 0x191919)
-							_WinAPI_SetDCPenColor($hDC, 0x191919)
-							_WinAPI_Rectangle($hDC, $tRect)
-							_WinAPI_SetDCPenColor($hDC, 0x434343)
-							_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor(0xFDFDFD))
-						Else
-							_WinAPI_SetDCPenColor($hDC, 0xE5E5E5)
-						EndIf
-
-						If $iIndex <= $iLastCol Then
-							_WinAPI_DrawLine($hDC, $tRect.Right - 2, $tRect.Top + 1, $tRect.Right - 2, $tRect.Bottom)
-						EndIf
-
-						If $iIndex = 1 Or $iIndex = 3 Then
-							$tRect.Right -= 9
-							_WinAPI_DrawText($hDC, $aListviewColumNames[$iIndex], $tRect, $DT_SINGLELINE + $DT_VCENTER + $DT_RIGHT)
-						Else
-							$tRect.Left += 6
-							_WinAPI_DrawText($hDC, $aListviewColumNames[$iIndex], $tRect, $DT_SINGLELINE + $DT_VCENTER)
-						EndIf
-
-						Return $CDRF_SKIPDEFAULT
-				EndSwitch
-			EndIf
-
 		Case $hWndListView
-			If $iCode = $NM_RCLICK Then
+			If $iCode = $NM_CUSTOMDRAW And _IsDarkTheme() Then
+				; Кастомная отрисовка тела таблицы: чередование строк, выделение и линии сетки
+				Local $tagNMLVCD = "struct;" & $tagNMHDR & ";dword dwDrawStage;handle hdc;" & _
+						$tagRECT & ";dword_ptr dwItemSpec;uint uItemState;lparam lItemlParam;" & _
+						"dword clrText;dword clrTextBk;int iSubItem;endstruct"
+				Local $tLVCD = DllStructCreate($tagNMLVCD, $ilParam)
+				Switch DllStructGetData($tLVCD, "dwDrawStage")
+					Case $CDDS_PREPAINT
+						Return $CDRF_NOTIFYITEMDRAW
+					Case $CDDS_ITEMPREPAINT
+						Local $iRow = DllStructGetData($tLVCD, "dwItemSpec")
+						If BitAND(DllStructGetData($tLVCD, "uItemState"), $CDIS_SELECTED) Then
+							; Снимаем флаги выделения/фокуса: система рисует строку как обычную (с нашим
+							; clrTextBk), но иконку и текст ставит сама на родные позиции - без сдвигов.
+							Local $iState = DllStructGetData($tLVCD, "uItemState")
+							DllStructSetData($tLVCD, "uItemState", BitAND($iState, BitNOT($CDIS_SELECTED), BitNOT($CDIS_FOCUS)))
+							DllStructSetData($tLVCD, "clrTextBk", $iLV_RowSel)
+						Else
+							DllStructSetData($tLVCD, "clrTextBk", BitAND($iRow, 1) ? $iLV_RowBkAlt : $iLV_RowBk)
+						EndIf
+						DllStructSetData($tLVCD, "clrText", $iLV_RowText)
+						Return $CDRF_NEWFONT
+				EndSwitch
+			ElseIf $iCode = $NM_RCLICK Then
 				Local $tInfo = DllStructCreate($tagNMITEMACTIVATE, $ilParam)
 				$iIndex = DllStructGetData($tInfo, "Index")
 				If $iIndex <> -1 Then
@@ -379,6 +372,66 @@ Func WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>WM_NOTIFY
 
+
+; Сабкласс ListView: перехватывает NM_CUSTOMDRAW заголовка (SysHeader32) и рисует его в цветах скина
+Func _LV_HeaderSubclass($hWnd, $iMsg, $iwParam, $ilParam, $iID, $pData)
+	#forceref $iwParam, $iID, $pData
+	If $iMsg = $WM_NOTIFY And _IsDarkTheme() Then
+		Local $tHdr = DllStructCreate($tagNMHDR, $ilParam)
+		If HWnd(DllStructGetData($tHdr, "hWndFrom")) = $g_hLVHeader And DllStructGetData($tHdr, "Code") = $NM_CUSTOMDRAW Then
+			Local $tagCD = "struct;" & $tagNMHDR & ";dword dwDrawStage;handle hdc;" & _
+					$tagRECT & ";dword_ptr dwItemSpec;uint uItemState;lparam lItemlParam;endstruct"
+			Local $tCD = DllStructCreate($tagCD, $ilParam)
+			Switch DllStructGetData($tCD, "dwDrawStage")
+				Case $CDDS_PREPAINT
+					Return $CDRF_NOTIFYITEMDRAW
+				Case $CDDS_ITEMPREPAINT
+					Local $iCol = DllStructGetData($tCD, "dwItemSpec")
+					Local $hDC = DllStructGetData($tCD, "hdc")
+					Local $tRect = DllStructCreate($tagRECT)
+					DllStructSetData($tRect, "Left", DllStructGetData($tCD, "Left"))
+					DllStructSetData($tRect, "Top", DllStructGetData($tCD, "Top"))
+					DllStructSetData($tRect, "Right", DllStructGetData($tCD, "Right"))
+					DllStructSetData($tRect, "Bottom", DllStructGetData($tCD, "Bottom"))
+
+					_WinAPI_SelectObject($hDC, _WinAPI_GetStockObject($DC_BRUSH))
+					_WinAPI_SelectObject($hDC, _WinAPI_GetStockObject($DC_PEN))
+					_WinAPI_SetBkMode($hDC, 1) ; TRANSPARENT
+
+					; Фон ячейки заголовка
+					_WinAPI_SetDCBrushColor($hDC, $iLV_HeaderBk)
+					_WinAPI_SetDCPenColor($hDC, $iLV_HeaderBk)
+					_WinAPI_Rectangle($hDC, $tRect)
+
+					; Рамка заголовка: вертикальный разделитель справа + нижняя горизонтальная линия
+					_WinAPI_SetDCPenColor($hDC, $iLV_GridLine)
+					_WinAPI_DrawLine($hDC, $tRect.Right - 1, $tRect.Top, $tRect.Right - 1, $tRect.Bottom)
+					_WinAPI_DrawLine($hDC, $tRect.Left, $tRect.Bottom - 1, $tRect.Right, $tRect.Bottom - 1)
+
+					; Текст заголовка
+					_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor($iLV_HeaderText))
+					If $iCol = 1 Or $iCol = 3 Then
+						$tRect.Right -= 9
+						_WinAPI_DrawText($hDC, $aListviewColumNames[$iCol], $tRect, $DT_SINGLELINE + $DT_VCENTER + $DT_RIGHT)
+					Else
+						$tRect.Left += 6
+						_WinAPI_DrawText($hDC, $aListviewColumNames[$iCol], $tRect, $DT_SINGLELINE + $DT_VCENTER)
+					EndIf
+					Return $CDRF_SKIPDEFAULT
+			EndSwitch
+		EndIf
+	EndIf
+	Return _WinAPI_DefSubclassProc($hWnd, $iMsg, $iwParam, $ilParam)
+EndFunc   ;==>_LV_HeaderSubclass
+
+; Снятие сабкласса и освобождение колбэка при выходе
+Func _LV_SubclassCleanup()
+	If $g_pLVSubclass <> 0 Then
+		_WinAPI_RemoveWindowSubclass(GUICtrlGetHandle($hListView), DllCallbackGetPtr($g_pLVSubclass), 1000)
+		DllCallbackFree($g_pLVSubclass)
+		$g_pLVSubclass = 0
+	EndIf
+EndFunc   ;==>_LV_SubclassCleanup
 
 
 Func _OnEventContextMenuItem1()
