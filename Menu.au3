@@ -1,5 +1,5 @@
 #pragma compile(Out, ..\MothPortable\Menu.exe)
-#pragma compile(Icon, Assets\Icons\Icon.ico)
+#pragma compile(Icon, Assets\Icons\Menu.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth Menu)
 #pragma compile(ProductVersion, 1.40)
@@ -202,7 +202,7 @@ Func _MenuItems($bResizer)
 
 	; Ширина окна - по длинной подписи живой строки: окно одно и то же при любом
 	; последнем размере, а строка при вводе не обрезается. Образец - с режимом и алгоритмом
-	; в постфиксе, название - самое длинное из «W × H», «по ширине W» и «по высоте H».
+	; в постфиксе, название - самое длинное из «WxH», «по ширине W» и «по высоте H».
 	; Свою подпись строка получит при сборке панели
 	$g_iResizeLive = $iCount - 1
 	Local $aLive = _ResizerLiveItem($gc_sResizeActionPrefix & 'resize_2048_1536_2_2')

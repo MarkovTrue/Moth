@@ -44,21 +44,20 @@ BadName=Действие пропущено, недопустимое назва
 NoTitle=Действие "%1" пропущено.\nЕго нет в файле настроек, либо у него нет заголовка.
 
 [Settings]
-Title=Настройки
 Language=Язык
 Theme=Тема
-ThemeSystem=Системная
 ThemeLight=Светлая
 ThemeDark=Тёмная
-Integrate=Добавить Moth в контекстное меню проводника
-Folders=Показывать меню для папок
+Integrate=Добавить в контекстное меню проводника
+Folders=Показывать в меню для папок
 TopPosition=Показывать Moth вверху меню
-Extended=Показывать только по Shift + правый клик
+; В фигурных скобках - клавиши, рисуются кнопками
+Extended=Показывать только по {SHIFT} + Правый клик
 OpenIni=Moth.ini
 OpenIniTip=Открыть файл настроек: состав меню, названия и параметры действий
+GitHubTip=Moth на GitHub: описание и релизы
 OK=ОК
 Cancel=Отмена
-Applying=Применяю…
 AutoClose=Автозакрытие
 AutoCloseOff=Выкл
 AutoCloseTip=Через сколько секунд после обработки закрыть окно Moth. Клик по окну отменяет закрытие
@@ -72,7 +71,8 @@ CheckNow=Проверить сейчас
 [Updates]
 TitleUpdate=[доступно обновление]
 Available=Доступна версия %1
-AvailableLink=Доступна версия %1, скачать
+AvailableLink=Новая версия %1
+Download=Скачать
 Checking=Проверка…
 UpToDate=Установлена последняя версия
 CheckFailed=Не удалось связаться с GitHub
@@ -117,7 +117,7 @@ Moth.ConvertToGif=в GIF
 Moth.ConvertToBmp=в BMP
 Moth.ConvertToJfif=в JFIF
 
-; Окно «Изменить размер…». Пресет: MenuTitle, %1 - его размер («50%», «1920 × 1080», «по ширине 1920»)
+; Окно «Изменить размер…». Пресет: MenuTitle, %1 - его размер («50%», «1920x1080», «по ширине 1920»)
 [Resizer]
 MenuTitle=Размер %1
 Width=по ширине %1

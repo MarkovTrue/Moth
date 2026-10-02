@@ -10,6 +10,7 @@
 ; Штатный флажок под тему – FluentNativeButton. Включённый – заливка акцентом и белая птичка.
 ; Клик по квадрату и по подписи переключает флажок, после чего зовётся
 ; обработчик смены. Состояние менять только функциями модуля.
+; Подпись с фигурными скобками рисует клавиши: «по {SHIFT} + Правый клик», см. _FluentTextKeys.
 ;
 ; Квадрат рисует _FluentCheck_Draw: годится и для окон, которые рисуют всё одной картинкой.
 
@@ -58,7 +59,8 @@ EndFunc   ;==>_FluentCheck_Create
 ; Ширина флажка с подписью: вызывающему для раскладки
 Func _FluentCheck_Width($sText)
 	If $sText = "" Then Return $gc_iFluentCheckBox
-	Return $gc_iFluentCheckBox + $gc_iFluentCheckGap + _FluentTextW($sText, _FluentFont()) + 2
+	Local $iTextW = StringInStr($sText, "{") ? _FluentTextKeys(0, $sText, 0, 0, 0, _FluentFont(), 0) : _FluentTextW($sText, _FluentFont())
+	Return $gc_iFluentCheckBox + $gc_iFluentCheckGap + $iTextW + 2
 EndFunc   ;==>_FluentCheck_Width
 
 
@@ -220,8 +222,12 @@ Func __FluentCheck_Render($iIndex)
 			$__g_aFluentChecks[$iIndex][6], $bEnabled)
 	Local $iTextX = $gc_iFluentCheckBox + $gc_iFluentCheckGap
 	; Подпись цветом подписей строк, как у соседних меток окна
-	If $__g_aFluentChecks[$iIndex][4] <> "" Then _FluentText($hGfx, $__g_aFluentChecks[$iIndex][4], $iTextX, 0, $iW - $iTextX, $iH, _
-			_FluentFont(), _FluentArgb($bEnabled ? $g_iFluentText2 : $g_iFluentText3), 0, 1, 3)
+	Local $sText = $__g_aFluentChecks[$iIndex][4], $iArgb = _FluentArgb($bEnabled ? $g_iFluentText2 : $g_iFluentText3)
+	If StringInStr($sText, "{") Then
+		_FluentTextKeys($hGfx, $sText, $iTextX, 0, $iH, _FluentFont(), $iArgb)
+	ElseIf $sText <> "" Then
+		_FluentText($hGfx, $sText, $iTextX, 0, $iW - $iTextX, $iH, _FluentFont(), $iArgb, 0, 1, 3)
+	EndIf
 
 	_FluentCanvasApply($__g_aFluentChecks[$iIndex][0], $__g_aFluentChecks[$iIndex][1], $hCanvas, $hGfx)
 EndFunc   ;==>__FluentCheck_Render

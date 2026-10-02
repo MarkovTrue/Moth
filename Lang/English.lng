@@ -44,21 +44,20 @@ BadName=Action skipped, invalid name:\n"%1"
 NoTitle=Action "%1" skipped.\nIt is missing from the settings file or has no title.
 
 [Settings]
-Title=Settings
 Language=Language
 Theme=Theme
-ThemeSystem=System
 ThemeLight=Light
 ThemeDark=Dark
-Integrate=Add Moth to the Explorer context menu
-Folders=Show the menu for folders
+Integrate=Add to the Explorer context menu
+Folders=Show in the folder menu
 TopPosition=Show Moth at the top of the menu
-Extended=Show only on Shift + right click
+; Keys in curly braces are drawn as buttons
+Extended=Show only on {SHIFT} + Right click
 OpenIni=Moth.ini
 OpenIniTip=Open the settings file: menu items, titles and action parameters
+GitHubTip=Moth on GitHub: description and releases
 OK=OK
 Cancel=Cancel
-Applying=Applying…
 AutoClose=Auto close
 AutoCloseOff=Off
 AutoCloseTip=Close the Moth window this long after processing. A click on the window cancels closing
@@ -72,7 +71,8 @@ CheckNow=Check now
 [Updates]
 TitleUpdate=[update available]
 Available=Version %1 is available
-AvailableLink=Version %1 is available, download
+AvailableLink=New version %1
+Download=Download
 Checking=Checking…
 UpToDate=You have the latest version
 CheckFailed=Could not reach GitHub
@@ -117,7 +117,7 @@ Moth.ConvertToGif=to GIF
 Moth.ConvertToBmp=to BMP
 Moth.ConvertToJfif=to JFIF
 
-; "Resize…" window. A preset: MenuTitle, %1 - its size ("50%", "1920 × 1080", "to width 1920")
+; "Resize…" window. A preset: MenuTitle, %1 - its size ("50%", "1920x1080", "to width 1920")
 [Resizer]
 MenuTitle=Size %1
 Width=to width %1

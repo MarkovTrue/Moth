@@ -1,5 +1,5 @@
 ﻿#pragma compile(Out, ..\MothPortable\Launcher.exe)
-#pragma compile(Icon, Assets\Icons\Icon.ico)
+#pragma compile(Icon, Assets\Icons\Launcher.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth Launcher)
 #pragma compile(ProductVersion, 1.40)

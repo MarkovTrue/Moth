@@ -24,7 +24,11 @@
 # convert - рисунок document_arrow_right из Fluent UI System Icons (MIT, Assets/Fluent), нарисован
 # под 16, 20 и 24 px; остальные кадры масштабируются из них (FLUENT_SRC).
 # Folder.ico (Settings.Editor) здесь не рисуется.
-# После сборки скопировать Themes в MothPortable.
+# Иконки вспомогательных exe (EXE_ICONS) - серые, в Assets/Icons: в папке программы их не спутать
+# с цветным мотыльком Moth.exe и Settings.exe. Launcher - рисунок Fluent, Menu - square-menu из Lucide,
+# разложенный по пикселям источников 16, 20 и 24 (SQUARE_MENU). Исходники Fluent - с GitHub
+# microsoft/fluentui-system-icons, assets/<Имя>/SVG: там пути в абсолютных командах.
+# После сборки скопировать Themes в MothPortable, exe пересобрать.
 # Запуск: python Assets/BuildMenuIcons.py [--out <папка>] [--sheet <файл.png>]
 import argparse
 import io
@@ -49,7 +53,7 @@ TEAL, SUN, BLUE, GREEN, ORANGE = '26A69A', 'FFB300', '1E88E5', '2E9D4A', 'EF6C00
 # Файл format_<ключ>.ico: подпись и цвет полосы. Первые девять - форматы Moth
 FORMATS = {
     'jpeg': ('JPG', 'E43434'),
-    'jfif': ('JFIF', 'B83030'),
+    'jfif': ('JFIF', 'E64A19'),
     'png': ('PNG', 'BA34C5'),
     'webp': ('WBP', '4B947C'),
     'jxl': ('JXL', '8429F1'),
@@ -528,6 +532,35 @@ def convert(c, t, color):
     c.fill(full * disc, hexc(color))
 
 
+# square-menu из Lucide. Его линия 2 из 24 в 16 и 20 px ложится между пикселями и мылится,
+# поэтому рисунок разложен вручную по пикселям каждого источника, кадры берутся из них, как у
+# Fluent (FLUENT_SRC). Источник: рамка (от, до, радиус, толщина), строки (от, до, верх каждой), толщина строки
+SQUARE_MENU = {
+    16: ((2, 15, 2, 1), (5, 12, (5, 8, 11)), 1),
+    20: ((2, 19, 2, 1), (6, 15, (6, 10, 14)), 1),
+    24: ((2, 22, 3, 2), (6, 18, (7, 11, 15)), 2),   # как в Lucide: строки со скруглёнными концами
+}
+
+
+def square_menu(c):
+    s = FLUENT_SRC[c.size]
+    k = 16 / s
+    (b0, b1, r, w), (x0, x1, ys), h = SQUARE_MENU[s]
+    m = c.rrect_stroke(b0 * k, b0 * k, b1 * k, b1 * k, r * k, w * k)
+    for y in ys:
+        m = m + (c.rect(x0 * k, y * k, x1 * k, (y + h) * k) if h == 1 else
+                 c.rrect(x0 * k, y * k, x1 * k, (y + h) * k, h * k / 2))
+    return np.clip(m, 0, 1)
+
+
+# Иконки exe: имя файла в Assets/Icons и маска рисунка. Цвет один на обе темы проводника
+EXE_COLOR = '808B96'
+EXE_ICONS = {
+    'Launcher': lambda c: fluent(c, 'flash')[0],   # Launcher.exe: отдаёт задание Moth
+    'Menu': square_menu,                           # Menu.exe: окна выбора действия и размеров
+}
+
+
 def label_rows(text):
     rows = [''] * 7
     for k, ch in enumerate(text):
@@ -633,6 +666,8 @@ if __name__ == '__main__':
         os.makedirs(folder, exist_ok=True)
         for name, fn in icons(theme).items():
             save_ico(fn, os.path.join(folder, ''.join(p.capitalize() for p in name.split('_')) + '.ico'))
+    for exe, mask in EXE_ICONS.items():
+        save_ico(lambda c, mask=mask: c.fill(mask(c), hexc(EXE_COLOR)), os.path.join(HERE, 'Icons', exe + '.ico'))
     if args.sheet:
         sheet(args.sheet)
     print('ok')

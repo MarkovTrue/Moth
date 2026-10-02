@@ -180,9 +180,13 @@ Func _GetExtensionListExpanded()
 EndFunc   ;==>_GetExtensionListExpanded
 
 
+; Тема окон Moth. Пока её не выбрали в настройках (пусто или System из ini до 1.40),
+; окна следуют режиму приложений Windows
 Func _IsDarkTheme()
 	Local $sTheme = _IniString_Read($gc_sMothIni, 'Config', 'ThemeGUI')
-	Return $sTheme = 'System' ? $gc_bRegDarkTheme : $sTheme = 'Dark'
+	If $sTheme = 'Dark' Then Return True
+	If $sTheme = 'Light' Then Return False
+	Return $gc_bRegDarkTheme
 EndFunc   ;==>_IsDarkTheme
 
 

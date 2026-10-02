@@ -11,10 +11,12 @@
     Соответствие:
       settings-2  -> Themes/Icons/Settings.png  (кнопка настроек главного окна, 16 px)
       refresh-cw  -> Themes/Icons/Refresh.png   (проверка обновлений в настройках, 18 px)
-      monitor, sun, moon -> SegSystem, SegLight, SegDark.png (сегмент темы в настройках, 14 px, как в VCLauncher)
+      github      -> Themes/Icons/GitHub.png    (описание на GitHub в настройках, 18 px). Значков брендов
+                     в lucide-static 1.x нет: этот берётся из 0.460.0, поле ver в карте
+      sun, moon   -> SegLight, SegDark.png (сегмент темы в настройках, 14 px, как в VCLauncher)
       move-horizontal, move-vertical -> FieldWidth, FieldHeight.png (поля ширины и высоты в окне размеров, 14 px)
-      arrow-down  -> Themes/Icons/NoEnlarge.png (кнопка «Не увеличивать» в окне размеров, 16 px: та же стрелка,
-                     что ↓ в подписи пресета)
+      minimize-2  -> Themes/Icons/NoEnlarge.png (кнопка «Не увеличивать» в окне размеров, 16 px: стрелки внутрь -
+                     картинка только уменьшается)
 
     После сборки скопировать PNG в MothPortable\Themes\Icons.
     Запуск: powershell -ExecutionPolicy Bypass -File Assets\BuildIcons.ps1
@@ -44,12 +46,12 @@ $IconDir   = Join-Path (Split-Path -Parent $AssetsDir) 'Themes\Icons'           
 $map = @(
     @{ name = 'settings-2'; out = (Join-Path $IconDir 'Settings.png') ; sw = 1.5  ; size = 16 },
     @{ name = 'refresh-cw'; out = (Join-Path $IconDir 'Refresh.png')  ; sw = 1.75 ; size = 18 },
-    @{ name = 'monitor'        ; out = (Join-Path $IconDir 'SegSystem.png')   ; sw = $null ; size = 14 },
+    @{ name = 'github'    ; out = (Join-Path $IconDir 'GitHub.png')   ; sw = 1.5  ; size = 18 ; ver = '0.460.0' },
     @{ name = 'sun'            ; out = (Join-Path $IconDir 'SegLight.png')    ; sw = $null ; size = 14 },
     @{ name = 'moon'           ; out = (Join-Path $IconDir 'SegDark.png')     ; sw = $null ; size = 14 },
     @{ name = 'move-horizontal'; out = (Join-Path $IconDir 'FieldWidth.png')  ; sw = $null ; size = 14 },
     @{ name = 'move-vertical'  ; out = (Join-Path $IconDir 'FieldHeight.png') ; sw = $null ; size = 14 },
-    @{ name = 'arrow-down'     ; out = (Join-Path $IconDir 'NoEnlarge.png')   ; sw = 1.5   ; size = 16 }
+    @{ name = 'minimize-2'     ; out = (Join-Path $IconDir 'NoEnlarge.png')   ; sw = 1.5   ; size = 16 }
 )
 
 $rgb   = [System.Windows.Media.Color]::FromRgb(
@@ -153,7 +155,8 @@ $svgDir = Join-Path $AssetsDir 'Icons'
 if (-not (Test-Path $svgDir)) { New-Item -ItemType Directory -Path $svgDir | Out-Null }
 
 foreach ($it in $map) {
-    $url = "https://unpkg.com/lucide-static@$Version/icons/$($it.name).svg"
+    $ver = if ($it.ver) { $it.ver } else { $Version }
+    $url = "https://unpkg.com/lucide-static@$ver/icons/$($it.name).svg"
     $svgName = (($it.name -split '-') | ForEach-Object { $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join ''
     $svgPath = Join-Path $svgDir ($svgName + '.svg')
     try {

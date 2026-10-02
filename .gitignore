@@ -10,6 +10,7 @@ CLAUDE.md
 .vscode/
 BackUp/
 Tests/
+Assets/Fluent/
 
 # Preview: в git только картинки README, скрипты сборки превью остаются локально
 Preview/*

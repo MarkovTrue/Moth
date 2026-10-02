@@ -100,15 +100,15 @@ The resize window has ready sizes on top, 50%, Full HD and 2K are there from the
 * "Fit": the whole picture fits into the size. "Fill": the picture covers the size, the extra stays. "Crop": the extra is cut off
 * A size that does not enlarge has a `↓` in its title
 
-The bottom row is the algorithm ImageMagick uses to recalculate the pixels. Pick it by what the picture holds:
+The bottom row is the smoothing mode: the filter ImageMagick uses to recalculate the pixels. Pick it by what the picture holds:
 
 | Button | Filter | Best for | Postfix |
 |---|---|---|---|
 | **Photo** | Lanczos | Photos. Fine details stay sharp when downscaling. Sharp high-contrast edges may get a slight light halo | - |
-| **Graphics** | Catmull-Rom | Screenshots, diagrams, text, logos. Almost as sharp, with less halo around letters and lines, flat fills stay even | `_gfx` |
-| **Pixels** | Point, nearest neighbor | Pixel art and small icons. Neighbor pixels are not blended, edges stay stepped. Cleanest when enlarging by a whole number: 200%, 300% | `_px` |
+| **Graphics** | Catmull-Rom | Screenshots, diagrams, text, logos. Almost as sharp, with less halo around letters and lines, flat fills stay even | `_vec` |
+| **Pixels** | Point, nearest neighbor | Pixel art and small icons. Neighbor pixels are not blended, edges stay stepped. Cleanest when enlarging by a whole number: 200%, 300% | `_pix` |
 
-The result is saved next to the original, with a postfix by size, mode and algorithm: `_per50`, `_res1920x1080`, `_res1280x`, `_res800x800_crop_gfx`.
+The result is saved next to the original, with a postfix by size, mode and smoothing: `_per50`, `_res1920x1080`, `_res1280x`, `_res800x800_crop_vec`.
 
 
 ## Settings

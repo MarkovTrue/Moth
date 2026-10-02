@@ -391,6 +391,76 @@ Func _FluentText($hGfx, $sText, $nX, $nY, $nW, $nH, $hFont, $iArgb, $iAlign = 0,
 EndFunc   ;==>_FluentText
 
 
+; Строка со вставками клавиш: в «{SHIFT} + Правый клик» SHIFT рисуется клавишей,
+; остальное - текстом. По вертикали по центру $nH. $hGfx = 0 - только мерит.
+; Возвращает занятую ширину
+Func _FluentTextKeys($hGfx, $sText, $nX, $nY, $nH, $hFont, $iArgb)
+	Local Const $iGap = 5, $iKeyH = 16
+	Local $hKeyFont = _FluentFont($__g_nFluentSizeSmall)
+	Local $aParts = StringRegExp($sText, '\{[^}]*\}|[^{]+', 3)
+	If @error Then Return 0
+
+	; Текст рисуется как обычная подпись, с полем GDI+ слева, а место под него - по мерке
+	; без полей. Мерка с полями у длинной фразы завышена, и зазор перед клавишей выходил
+	; шире, чем после неё. Мерка - тем же Graphics, что рисует: от подсказки рендера зависит
+	; ширина. Поле меряется по одному знаку
+	Local $hMeasure = $hGfx ? $hGfx : $__g_hFluentMeasureGfx
+	Local $hFormat = __FluentFormatTypographic()
+	Local $iPad = Floor((_FluentTextW("x", $hFont) - __FluentTextTypoW($hMeasure, "x", $hFont, $hFormat)) / 2)
+	Local $nCx = $nX, $sPart, $iW, $nTop, $nTextX
+	For $i = 0 To UBound($aParts) - 1
+		$sPart = StringStripWS($aParts[$i], 3)
+		If $sPart = "" Then ContinueLoop
+		If $nCx > $nX Then $nCx += $iGap
+		If StringLeft($sPart, 1) = "{" Then
+			$sPart = StringStripWS(StringMid($sPart, 2, StringLen($sPart) - 2), 3)
+			$iW = _Max(19, _FluentTextW($sPart, $hKeyFont) + 12)
+			If $hGfx Then
+				$nTop = $nY + Int(($nH - $iKeyH) / 2)
+				_FluentBox($hGfx, $nCx, $nTop, $iW, $iKeyH, 2, _FluentArgb($g_iFluentKeyBg), _FluentArgb($g_iFluentKeyBorder))
+				; Нижняя грань толще: вставка читается клавишей, а не полем ввода
+				_FluentLine($hGfx, $nCx + 2, $nTop + $iKeyH - 2, $nCx + $iW - 2, $nTop + $iKeyH - 2, _FluentArgb($g_iFluentKeyBorder))
+				; Строку GDI+ центрирует с запасом под выносные элементы, и надпись клавиши
+				; без них, SHIFT или CTRL, всплывает к верхней грани. Опускаем на 2 px
+				_FluentText($hGfx, $sPart, $nCx, $nTop + 2, $iW, $iKeyH - 1, $hKeyFont, $iArgb, 1, 1)
+			EndIf
+		Else
+			; Первая строка встаёт вровень с соседними подписями, следующие - поле левее
+			$nTextX = ($nCx = $nX) ? $nCx : $nCx - $iPad
+			$iW = __FluentTextTypoW($hMeasure, $sPart, $hFont, $hFormat) + (($nCx = $nX) ? $iPad : 0)
+			If $hGfx Then _FluentText($hGfx, $sPart, $nTextX, $nY, $iW + $iPad * 2 + 4, $nH, $hFont, $iArgb, 0, 1)
+		EndIf
+		$nCx += $iW
+	Next
+	_GDIPlus_StringFormatDispose($hFormat)
+	Return $nCx - $nX
+EndFunc   ;==>_FluentTextKeys
+
+
+; Копия GenericTypographic: без полей по краям строки, без переноса, по вертикали по центру
+Func __FluentFormatTypographic()
+	Local $aCall = DllCall("gdiplus.dll", "int", "GdipStringFormatGetGenericTypographic", "handle*", 0)
+	If @error Or $aCall[0] Then Return _GDIPlus_StringFormatCreate(0x1000)
+	Local $hGeneric = $aCall[1]
+	; Общий объект GDI+ не трогаем: правим и удаляем копию
+	$aCall = DllCall("gdiplus.dll", "int", "GdipCloneStringFormat", "handle", $hGeneric, "handle*", 0)
+	If @error Or $aCall[0] Then Return _GDIPlus_StringFormatCreate(0x1000)
+	Local $hFormat = $aCall[2]
+	$aCall = DllCall("gdiplus.dll", "int", "GdipGetStringFormatFlags", "handle", $hFormat, "int*", 0)
+	If Not @error And $aCall[0] = 0 Then DllCall("gdiplus.dll", "int", "GdipSetStringFormatFlags", "handle", $hFormat, "int", BitOR($aCall[2], 0x1000))
+	_GDIPlus_StringFormatSetLineAlign($hFormat, 1)
+	Return $hFormat
+EndFunc   ;==>__FluentFormatTypographic
+
+
+Func __FluentTextTypoW($hGfx, $sText, $hFont, $hFormat)
+	If Not $hGfx Then Return 0
+	Local $aInfo = _GDIPlus_GraphicsMeasureString($hGfx, $sText, $hFont, _GDIPlus_RectFCreate(0, 0, 4000, 100), $hFormat)
+	If Not IsArray($aInfo) Then Return 0
+	Return Ceiling(DllStructGetData($aInfo[0], "Width"))
+EndFunc   ;==>__FluentTextTypoW
+
+
 ; Высота строки шрифта окна средствами GDI: ей меряет строки штатный Edit,
 ; поэтому многострочному полю нужна она, а не высота из GDI+
 Func _FluentGdiLineHeight()
@@ -411,6 +481,24 @@ Func _FluentGdiLineHeight()
 	$__g_iFluentGdiLineH = $iH
 	Return $iH
 EndFunc   ;==>_FluentGdiLineHeight
+
+
+; Ширина строки шрифтом штатного контрола $iCtrl средствами GDI: так её рисует Static.
+; GDI+ даёт строку шире на поля, и метка по её мерке оставляет зазор за текстом
+Func _FluentGdiTextW($sText, $iCtrl)
+	Local $hCtrl = GUICtrlGetHandle($iCtrl)
+	If Not $hCtrl Then Return 0
+	Local $hDC = _WinAPI_GetDC($hCtrl)
+	If Not $hDC Then Return 0
+
+	Local $hOld = 0
+	Local $hFont = _SendMessage($hCtrl, $WM_GETFONT, 0, 0, 0, "wparam", "lparam", "handle")
+	If $hFont Then $hOld = _WinAPI_SelectObject($hDC, $hFont)
+	Local $tSize = _WinAPI_GetTextExtentPoint32($hDC, $sText)
+	If $hOld Then _WinAPI_SelectObject($hDC, $hOld)
+	_WinAPI_ReleaseDC($hCtrl, $hDC)
+	Return IsDllStruct($tSize) ? DllStructGetData($tSize, "X") : 0
+EndFunc   ;==>_FluentGdiTextW
 
 
 Func _FluentTextW($sText, $hFont)

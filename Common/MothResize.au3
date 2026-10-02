@@ -85,12 +85,12 @@ EndFunc   ;==>_ResizeCommand
 
 
 ; Постфикс нового файла: размер, в конце режим и алгоритм, если они не по умолчанию.
-; _per50, _per50_px, _res1920x1080, _res800x800_crop_gfx, _res1920x, _resx1080.
+; _per50, _per50_pix, _res1920x1080, _res800x800_crop_vec, _res1920x, _resx1080.
 ; Сторона 0 - как в геометрии ImageMagick: пусто. С одной стороной режим только «вписать»
 Func _ResizePostfix($sCommand)
 	Local $aResize = _ResizeParse($sCommand)
 	If @error Then Return ''
-	Local $aMode[3] = ['', '_fill', '_crop'], $aGroup[3] = ['', '_gfx', '_px']
+	Local $aMode[3] = ['', '_fill', '_crop'], $aGroup[3] = ['', '_vec', '_pix']
 	Local $sGroup = $aGroup[_ResizeFilterGroup($aResize[4])]
 	If $aResize[0] Then Return '_per' & $aResize[0] & $sGroup
 	Local $sMode = ($aResize[1] And $aResize[2]) ? $aMode[$aResize[3]] : ''
@@ -98,7 +98,7 @@ Func _ResizePostfix($sCommand)
 EndFunc   ;==>_ResizePostfix
 
 
-; Размер пресета: «50%», «1920 × 1080», «по ширине 1920». Режим и алгоритм
+; Размер пресета: «50%», «1920x1080», «по ширине 1920». Режим и алгоритм
 ; в подписи не пишутся: их видно по иконке и постфиксу. Размер в точках без увеличения -
 ; со стрелкой вниз в конце
 Func _ResizeLabel($sCommand)
@@ -112,8 +112,8 @@ Func _ResizeLabel($sCommand)
 	ElseIf $aResize[1] = 0 Then
 		$sLabel = _LangFile_Format('Resizer', 'Height', 'to height %1', $aResize[2])
 	Else
-		; U+00D7 - знак умножения
-		$sLabel = $aResize[1] & ' ' & ChrW(0xD7) & ' ' & $aResize[2]
+		; Латинская x без пробелов, как в постфиксе _res1920x1080
+		$sLabel = $aResize[1] & 'x' & $aResize[2]
 	EndIf
 	; U+2193 - стрелка вниз
 	If ($aResize[1] Or $aResize[2]) And Not $aResize[5] Then $sLabel &= ' ' & ChrW(0x2193)

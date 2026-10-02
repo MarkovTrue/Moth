@@ -16,68 +16,12 @@
 ; ============================================================
 ; Список пунктов с иконками, выбор в один клик. Окно закрывается выбором,
 ; Esc или кликом в любое другое место.
-;
-; У пункта может быть кнопка-переключатель справа (_FluentMenu_SetButton): булавка
-; «закрепить» или «открепить». Контур булавки виден у строки под курсором, её клик окно
-; не закрывает. Включённый пункт и без наведения несёт залитую булавку цвета акцента,
-; под курсором кнопки она перечёркнута. Булавка нарисована векторно.
-; Левее булавки может появляться крестик «убрать из списка»: только у строки под курсором,
-; на месте пояснения справа: пояснение у такой строки прячется. Места под крестик строка не держит
-; и без наведения выглядит как обычно. Клик по нему убирает пункт сразу (_FluentMenu_SetRemove).
-; Высота окна меняется от вставки и удаления пунктов, нижний край при этом стоит на месте:
-; панель и живые пункты не прыгают.
-; Группы пунктов разделяет черта (_FluentMenu_SetDividers).
-; Список можно сортировать (_FluentMenu_SetSort): у строки под курсором левее крестика
-; стрелки «вверх» и «вниз», пункт меняется местами с соседом в своей группе. Курсор
-; едет вместе с пунктом, и следующий клик двигает его дальше. Стрелка, которой некуда
-; вести, видна недоступной.
-; У последнего живого пункта вместо булавки может стоять стрелка «добавить в список»
-; (_FluentMenu_SetAdd): пункт поднимается в список, закрепляют его уже там. Пункт вставляет
-; приложение (_FluentMenu_InsertItem). Такой пункт в списке уже есть – стрелка недоступна.
-; У подсвеченной строки кнопки в рамках с лёгкой заливкой, у кнопки под курсором заливка ярче,
-; недоступная кнопка - в рамке без заливки.
-; Клавиши: стрелки, Home, End, Enter – выбрать, пробел – переключить кнопку.
-; Строка под нажатой кнопкой мыши заливается тусклее наведения: клик виден, пока кнопка нажата.
-; Пункт можно выбрать, не закрывая окна (_FluentMenu_SetPick): клик или Enter с Ctrl.
-; Пункт уходит приложению, окно остаётся, и так выбирают несколько пунктов подряд. Приложение
-; помечает выбранные (_FluentMenu_SetMarked): подпись пункта тускнеет.
-; Окно, которое выбор поднял (запущенная программа), активность у меню не отнимает.
-; Shift и левая кнопка мыши в любом месте окна, кроме контролов панели, тащат окно.
-;
-; Шрифт – системный шрифт меню (lfMenuFont из NONCLIENTMETRICS): гарнитура, размер,
-; жирность и курсив те же, что у контекстного меню проводника.
-;
-; Вид рисуется одной картинкой в Pic: пунктов немного, и наведение
-; перерисовывает один битмап без мерцания отдельных контролов. Pic выключен,
-; поэтому мышь достаётся самому окну (WM_MOUSEMOVE и клики).
-;
-; Пункты – массив [n][3], [n][4] или [n][5]: подпись, файл иконки (.ico, exe или dll) либо '',
-; индекс иконки в exe/dll, состояние кнопки (True/False; '' или нет колонки – без кнопки),
-; крестик (True/False; '' или нет колонки – без крестика). После сортировки, вставки
-; и удаления _FluentMenu_Show возвращает пункты в нынешнем порядке, без убранных.
-; Подпись как у пункта меню Win32: «название<Tab>пояснение», пояснение стоит
-; приглушённым столбцом у правого края.
-;
-; Пока окно открыто, его обработчики WM_MOUSEMOVE, WM_*BUTTON* и WM_ACTIVATE стоят
-; в маршрутизаторе ядра рядом с обработчиками приложения. Приложение регистрирует свои
-; через _FluentMsg_Register: прямой GUIRegisterMsg на эти сообщения меню бы перебило.
-;
-; Под пунктами может стоять панель приложения (_FluentMenu_SetPanel): поле ввода, сегменты,
-; кнопки, отделённые чертой. Контролы панели приложение создаёт само в окне меню, под ними
-; лежит картинка меню с WS_CLIPSIBLINGS, и перерисовка строк их не затирает. Рисованные
-; контролы панели заливают углы фоном окна, поэтому на время показа фон окна – цвет карточки.
-; Home, End и пробел в поле ввода панели работают как в поле; Enter уходит панели,
-; если пункт не подсвечен стрелками. Ввод в поле гасит подсветку стрелками.
-; Последние пункты могут быть живыми – результатом панели: приложение меняет их на лету
-; (_FluentMenu_SetItem). Пока курсор не над другими пунктами (над панелью, вне окна),
-; последний живой пункт подсвечен, как под курсором: его и собирают полями панели,
-; клик по нему или Enter его выбирают. Его кнопка видна и без наведения.
-; Недоступный пункт серый, не подсвечивается и не выбирается.
 
-; Метрика меню Windows 11: поле вокруг пунктов, пункт 28, иконка 16; зазор до столбца пояснений
+; Метрика меню Windows 11: поле вокруг пунктов, пункт 28, иконка 16; зазор до столбца пояснений.
+; Зазор от иконки до подписи 8 px: у меню Windows он 12, и подпись отрывается от иконки
 Global Const $gc_iFluentMenuPad = 4, $gc_iFluentMenuItemH = 28, $gc_iFluentMenuIcon = 16
 Global Const $gc_iFluentMenuHintGap = 24
-Global Const $gc_iFluentMenuIconX = 12, $gc_iFluentMenuTextX = 40, $gc_iFluentMenuTextPadR = 24, $gc_iFluentMenuMinW = 180
+Global Const $gc_iFluentMenuIconX = 12, $gc_iFluentMenuTextX = 36, $gc_iFluentMenuTextPadR = 24, $gc_iFluentMenuMinW = 180
 ; Кнопка пункта: сторона, поле до края строки, зазор до подписи; булавка в ней
 Global Const $gc_iFluentMenuBtn = 24, $gc_iFluentMenuBtnPad = 2, $gc_iFluentMenuBtnGap = 12, $gc_iFluentMenuGlyph = 16
 ; Поле панели слева и справа: по иконкам пунктов
@@ -124,6 +68,8 @@ Global $__g_iFluentMenuPendingRow = -1, $__g_iFluentMenuPendingBtn = 0
 ; движения мыши (окно появилось под курсором, перерисовка), причём с разными
 ; координатами в lParam, и такой повтор не должен сбивать подсветку клавиш
 Global $__g_iFluentMenuLastX = -1, $__g_iFluentMenuLastY = -1
+; Shift зажат над окном: клик потащит окно
+Global $__g_bFluentMenuMoveKey = False
 Global $__g_iFluentMenuResult = -1, $__g_bFluentMenuDone = False, $__g_bFluentMenuWasActive = False
 ; Windows 11 скругляет окно и рисует рамку сама, на Windows 10 рамку рисуем мы
 Global $__g_bFluentMenuDwmFrame = False
@@ -177,7 +123,7 @@ Func _FluentMenu_SetPick($sOnPick)
 EndFunc   ;==>_FluentMenu_SetPick
 
 
-; Метка выбранного пункта открытого окна: подпись тусклее, между обычной и недоступной
+; Метка выбранного пункта открытого окна: подпись серая, иконка бледная и без цвета
 Func _FluentMenu_SetMarked($iRow, $bMarked)
 	If Not $__g_hFluentMenuGui Or $iRow < 0 Or $iRow >= UBound($__g_aFluentMenuMarked) Then Return
 	If $__g_aFluentMenuMarked[$iRow] = $bMarked Then Return
@@ -358,6 +304,7 @@ Func _FluentMenu_Show(ByRef $aItems, $bDark = Default, $iX = Default, $iY = Defa
 	$__g_iFluentMenuPendingBtn = 0
 	$__g_iFluentMenuLastX = -1
 	$__g_iFluentMenuLastY = -1
+	$__g_bFluentMenuMoveKey = False
 	$__g_iFluentMenuResult = -1
 	$__g_bFluentMenuDone = False
 	$__g_bFluentMenuWasActive = False
@@ -674,12 +621,27 @@ Func __FluentMenu_Frame()
 	DllStructSetData($tValue, 1, 3) ; DWMWCP_ROUNDSMALL
 	DllCall('dwmapi.dll', 'long', 'DwmSetWindowAttribute', 'hwnd', $__g_hFluentMenuGui, 'dword', 33, _
 			'struct*', $tValue, 'dword', 4) ; DWMWA_WINDOW_CORNER_PREFERENCE
+	__FluentMenu_DwmBorder()
+EndFunc   ;==>__FluentMenu_Frame
+
+
+; Цвет рамки от DWM: акцент, пока окно готово к перетаскиванию
+Func __FluentMenu_DwmBorder()
+	If Not $__g_bFluentMenuDwmFrame Then Return
+	Local $tValue = DllStructCreate('int')
 	; COLORREF: байты в обратном порядке
-	Local $iRgb = $g_iFluentCardBorder
+	Local $iRgb = __FluentMenu_BorderColor()
 	DllStructSetData($tValue, 1, BitOR(BitShift(BitAND($iRgb, 0xFF), -16), BitAND($iRgb, 0xFF00), BitShift($iRgb, 16)))
 	DllCall('dwmapi.dll', 'long', 'DwmSetWindowAttribute', 'hwnd', $__g_hFluentMenuGui, 'dword', 34, _
 			'struct*', $tValue, 'dword', 4) ; DWMWA_BORDER_COLOR
-EndFunc   ;==>__FluentMenu_Frame
+EndFunc   ;==>__FluentMenu_DwmBorder
+
+
+; Рамка перетаскивания - цвет текста на 70% поверх карточки: в полную силу линия
+; в пиксель смотрится жирной. Хорошо видна в обеих темах, на белом - тёмно-серая
+Func __FluentMenu_BorderColor()
+	Return $__g_bFluentMenuMoveKey ? __FluentMenu_Mix($g_iFluentCard, $g_iFluentText1, 0.7) : $g_iFluentCardBorder
+EndFunc   ;==>__FluentMenu_BorderColor
 
 
 Func __FluentMenu_RowY($iRow)
@@ -768,12 +730,18 @@ Func __FluentMenu_Render()
 	Local $bPressed = $__g_bFluentMenuPressed And Not $__g_iFluentMenuPressBtn And $__g_iFluentMenuPressRow = $iHot
 	If $iHot >= 0 Then _FluentFill($hGfx, $gc_iFluentMenuPad, __FluentMenu_RowY($iHot), $iRowW, $gc_iFluentMenuItemH, _
 			$gc_nFluentRadTrack, _FluentArgb($bPressed ? __FluentMenu_Mix($g_iFluentHover, $g_iFluentCard) : $g_iFluentHover))
-	Local $iMarkedText = __FluentMenu_Mix($g_iFluentText1, $g_iFluentText3), $iTextColor
+	Local $iMarkedHint = __FluentMenu_Mix($g_iFluentText3, $g_iFluentCard), $iTextColor
 
 	For $i = 0 To UBound($__g_aFluentMenuTexts) - 1
 		$iY = __FluentMenu_RowY($i)
-		If $__g_aFluentMenuIcons[$i] Then _GDIPlus_GraphicsDrawImageRect($hGfx, $__g_aFluentMenuIcons[$i], _
-				$gc_iFluentMenuIconX, $iY + $iIconDY, $gc_iFluentMenuIcon, $gc_iFluentMenuIcon)
+		If $__g_aFluentMenuIcons[$i] Then
+			If $__g_aFluentMenuMarked[$i] Then
+				__FluentMenu_DrawIconFaded($hGfx, $__g_aFluentMenuIcons[$i], $gc_iFluentMenuIconX, $iY + $iIconDY)
+			Else
+				_GDIPlus_GraphicsDrawImageRect($hGfx, $__g_aFluentMenuIcons[$i], $gc_iFluentMenuIconX, $iY + $iIconDY, _
+						$gc_iFluentMenuIcon, $gc_iFluentMenuIcon)
+			EndIf
+		EndIf
 		; Пояснение столбцом; у живого пункта оно меняется и может оказаться шире столбца.
 		; Под крестиком и стрелками сортировки его нет: место держится, название не растягивается
 		$iHintW = 0
@@ -781,13 +749,14 @@ Func __FluentMenu_Render()
 			$iHintW = $__g_iFluentMenuHintW
 			If __FluentMenu_IsLive($i) Then $iHintW = _Max($iHintW, _FluentTextW($__g_aFluentMenuHints[$i], $hFont))
 			If Not __FluentMenu_HasOverlay($i) Then _FluentText($hGfx, $__g_aFluentMenuHints[$i], $iRight - $iHintW, $iY, _
-					$iHintW + 4, $gc_iFluentMenuItemH, $hFont, _FluentArgb($g_iFluentText3), 2, 1)
+					$iHintW + 4, $gc_iFluentMenuItemH, $hFont, _
+					_FluentArgb($__g_aFluentMenuMarked[$i] ? $iMarkedHint : $g_iFluentText3), 2, 1)
 		EndIf
 		$iTextW = $iRight - $gc_iFluentMenuTextX - ($iHintW ? $gc_iFluentMenuHintGap + $iHintW : 0)
-		; Выбранный без закрытия пункт тускнеет, недоступный - серый
-		$iTextColor = $__g_aFluentMenuMarked[$i] ? $iMarkedText : $g_iFluentText1
+		; Выбранный без закрытия пункт и недоступный - серые
+		$iTextColor = ($__g_aFluentMenuMarked[$i] Or Not $__g_aFluentMenuEnabled[$i]) ? $g_iFluentText3 : $g_iFluentText1
 		_FluentText($hGfx, $__g_aFluentMenuTexts[$i], $gc_iFluentMenuTextX, $iY, $iTextW + 4, $gc_iFluentMenuItemH, $hFont, _
-				_FluentArgb($__g_aFluentMenuEnabled[$i] ? $iTextColor : $g_iFluentText3), 0, 1, 3)
+				_FluentArgb($iTextColor), 0, 1, 3)
 		If $__g_aFluentMenuEnabled[$i] Then __FluentMenu_DrawBtn($hGfx, $i, $iY)
 	Next
 
@@ -800,14 +769,17 @@ Func __FluentMenu_Render()
 		$iLineY = __FluentMenu_RowY($i) - Int(($gc_iFluentMenuDividerH + 1) / 2)
 		_FluentLine($hGfx, $gc_iFluentMenuPad, $iLineY, $__g_iFluentMenuW - $gc_iFluentMenuPad, $iLineY, _FluentArgb($g_iFluentDivider))
 	Next
-	If Not $__g_bFluentMenuDwmFrame Then _FluentStroke($hGfx, 0, 0, $__g_iFluentMenuW, $__g_iFluentMenuH, 0, _FluentArgb($g_iFluentCardBorder))
+	; Рамка цвета текста: окно готово к перетаскиванию
+	If Not $__g_bFluentMenuDwmFrame Then _FluentStroke($hGfx, 0, 0, $__g_iFluentMenuW, $__g_iFluentMenuH, 0, _
+			_FluentArgb(__FluentMenu_BorderColor()))
 	_FluentCanvasApply($__g_iFluentMenuPic, $__g_hFluentMenuPicBmp, $hCanvas, $hGfx)
 EndFunc   ;==>__FluentMenu_Render
 
 
 ; Строка с подсветкой наведения: под курсором или стрелками, а если такой нет -
-; последний живой пункт, пока он доступен. -1 – подсветки нет
+; последний живой пункт, пока он доступен. -1 – подсветки нет: и пока клик тащит окно
 Func __FluentMenu_ShownHot()
+	If $__g_bFluentMenuMoveKey Then Return -1
 	If $__g_iFluentMenuHot >= 0 Or Not $__g_iFluentMenuLive Then Return $__g_iFluentMenuHot
 	Local $iLast = UBound($__g_aFluentMenuTexts) - 1
 	Return $__g_aFluentMenuEnabled[$iLast] ? $iLast : -1
@@ -821,7 +793,7 @@ EndFunc   ;==>__FluentMenu_ShownHot
 ; «добавить» встаёт вместо булавки и тоже видна всегда. Крестик и стрелки сортировки видны
 ; у строки под курсором. Недоступная кнопка - в рамке без заливки и не подсвечивается
 Func __FluentMenu_DrawBtn($hGfx, $iRow, $iY)
-	Local $bHot = ($iRow = $__g_iFluentMenuHot), $bLit = ($iRow = __FluentMenu_ShownHot())
+	Local $bHot = ($iRow = $__g_iFluentMenuHot And Not $__g_bFluentMenuMoveKey), $bLit = ($iRow = __FluentMenu_ShownHot())
 	Local $bOn = $__g_aFluentMenuStates[$iRow]
 	Local $iBtnY = $iY + Int(($gc_iFluentMenuItemH - $gc_iFluentMenuBtn) / 2)
 	Local $iGlyphY = $iBtnY + Int(($gc_iFluentMenuBtn - $gc_iFluentMenuGlyph) / 2)
@@ -888,7 +860,7 @@ EndFunc   ;==>__FluentMenu_DrawArrow
 
 ; У строки под курсором поверх пояснения стоят крестик или стрелки сортировки
 Func __FluentMenu_HasOverlay($iRow)
-	If $iRow <> $__g_iFluentMenuHot Or Not $__g_aFluentMenuEnabled[$iRow] Then Return False
+	If $iRow <> $__g_iFluentMenuHot Or $__g_bFluentMenuMoveKey Or Not $__g_aFluentMenuEnabled[$iRow] Then Return False
 	For $iBtn = 2 To 4
 		If __FluentMenu_RowHasBtn($iRow, $iBtn) Then Return True
 	Next
@@ -896,15 +868,44 @@ Func __FluentMenu_HasOverlay($iRow)
 EndFunc   ;==>__FluentMenu_HasOverlay
 
 
-; Цвет посередине между $iA и $iB, по каждому каналу
-Func __FluentMenu_Mix($iA, $iB)
-	Local $iColor = 0, $iChannel
+; Цвет между $iA и $iB по каждому каналу: доля $nPart от $iB, по умолчанию посередине
+Func __FluentMenu_Mix($iA, $iB, $nPart = 0.5)
+	Local $iColor = 0, $iChannel, $iFrom
 	For $iShift = 0 To 16 Step 8
-		$iChannel = Int((BitAND(BitShift($iA, $iShift), 0xFF) + BitAND(BitShift($iB, $iShift), 0xFF)) / 2)
+		$iFrom = BitAND(BitShift($iA, $iShift), 0xFF)
+		$iChannel = Int($iFrom + (BitAND(BitShift($iB, $iShift), 0xFF) - $iFrom) * $nPart)
 		$iColor += BitShift($iChannel, -$iShift)
 	Next
 	Return $iColor
 EndFunc   ;==>__FluentMenu_Mix
+
+
+; Иконка выбранного пункта: серая и на 35% непрозрачности
+Func __FluentMenu_DrawIconFaded($hGfx, $hImage, $iX, $iY)
+	; Матрица 5x5 построчно: строка - входной канал, столбец - выходной. Яркость по весам
+	; BT.601 во все три канала, альфа умножается
+	Local $aWeights[3] = [0.299, 0.587, 0.114]
+	Local $tMatrix = DllStructCreate('float m[25]')
+	For $iIn = 0 To 2
+		For $iOut = 0 To 2
+			DllStructSetData($tMatrix, 'm', $aWeights[$iIn], $iIn * 5 + $iOut + 1)
+		Next
+	Next
+	DllStructSetData($tMatrix, 'm', 0.35, 19)
+	DllStructSetData($tMatrix, 'm', 1, 25)
+
+	Local $aAttr = DllCall('gdiplus.dll', 'int', 'GdipCreateImageAttributes', 'handle*', 0)
+	If @error Or $aAttr[0] <> 0 Then Return
+	Local $hAttr = $aAttr[1]
+	DllCall('gdiplus.dll', 'int', 'GdipSetImageAttributesColorMatrix', 'handle', $hAttr, _
+			'int', 0, 'bool', True, 'struct*', $tMatrix, 'ptr', 0, 'int', 0)
+	; Единица 2 – пиксель
+	DllCall('gdiplus.dll', 'int', 'GdipDrawImageRectRectI', 'handle', $hGfx, 'handle', $hImage, _
+			'int', $iX, 'int', $iY, 'int', $gc_iFluentMenuIcon, 'int', $gc_iFluentMenuIcon, _
+			'int', 0, 'int', 0, 'int', _GDIPlus_ImageGetWidth($hImage), 'int', _GDIPlus_ImageGetHeight($hImage), _
+			'int', 2, 'handle', $hAttr, 'ptr', 0, 'ptr', 0)
+	DllCall('gdiplus.dll', 'int', 'GdipDisposeImageAttributes', 'handle', $hAttr)
+EndFunc   ;==>__FluentMenu_DrawIconFaded
 
 
 ; Булавка в квадрате $gc_iFluentMenuGlyph: головка вправо-вверх, игла влево-вниз.
@@ -1075,9 +1076,9 @@ EndFunc   ;==>__FluentMenu_Close
 
 
 Func __FluentMenu_Events($bOn)
-	Local $aMsgs[6] = [$WM_MOUSEMOVE, $WM_LBUTTONDOWN, $WM_LBUTTONUP, $WM_RBUTTONDOWN, $WM_RBUTTONUP, $WM_ACTIVATE]
-	Local $aFuncs[6] = ['__FluentMenu_WmMouseMove', '__FluentMenu_WmButtonDown', '__FluentMenu_WmButtonUp', '__FluentMenu_WmButtonDown', _
-			'__FluentMenu_WmButtonUp', '__FluentMenu_WmActivate']
+	Local $aMsgs[7] = [$WM_MOUSEMOVE, $WM_LBUTTONDOWN, $WM_LBUTTONUP, $WM_RBUTTONDOWN, $WM_RBUTTONUP, $WM_ACTIVATE, $WM_SETCURSOR]
+	Local $aFuncs[7] = ['__FluentMenu_WmMouseMove', '__FluentMenu_WmButtonDown', '__FluentMenu_WmButtonUp', '__FluentMenu_WmButtonDown', _
+			'__FluentMenu_WmButtonUp', '__FluentMenu_WmActivate', '__FluentMenu_WmSetCursor']
 	For $i = 0 To UBound($aMsgs) - 1
 		If $bOn Then
 			_FluentMsg_Register($aMsgs[$i], $aFuncs[$i])
@@ -1243,6 +1244,16 @@ Func __FluentMenu_WmButtonUp($hWnd, $iMsg, $wParam, $lParam)
 EndFunc   ;==>__FluentMenu_WmButtonUp
 
 
+; Пока Shift зажат над окном, курсор – стрелки во все стороны. Без ответа
+; система при каждом движении мыши ставила бы курсор класса окна
+Func __FluentMenu_WmSetCursor($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $iMsg, $lParam
+	If $hWnd <> $__g_hFluentMenuGui Or HWnd($wParam) <> $hWnd Or Not $__g_bFluentMenuMoveKey Then Return $GUI_RUNDEFMSG
+	_WinAPI_SetCursor(_WinAPI_LoadCursor(0, $IDC_SIZEALL))
+	Return 1
+EndFunc   ;==>__FluentMenu_WmSetCursor
+
+
 ; Клик в любое другое место забирает у окна активность – окно закрывается. Активность
 ; без нажатой кнопки мыши вскоре после выбора без закрытия забрало окно, которое выбор
 ; поднял: меню возвращает её себе
@@ -1291,6 +1302,7 @@ Func __FluentMenu_Poll()
 
 	Local $tPoint = DllStructCreate($tagPOINT)
 	DllCall('user32.dll', 'bool', 'GetCursorPos', 'struct*', $tPoint)
+	__FluentMenu_MoveKeyCheck($tPoint)
 	Local $aPos = WinGetPos($__g_hFluentMenuGui)
 	If Not IsArray($aPos) Then Return
 	Local $bInside = $tPoint.X >= $aPos[0] And $tPoint.X < $aPos[0] + $aPos[2] And _
@@ -1300,6 +1312,25 @@ Func __FluentMenu_Poll()
 	If $__g_bFluentMenuWasActive Or $bInside Then Return
 	If __FluentMenu_MouseDown() Then $__g_bFluentMenuDone = True
 EndFunc   ;==>__FluentMenu_Poll
+
+
+; Shift зажат над самим окном, не над контролом панели: клик потащит окно. Смена видна
+; сразу, без движения мыши: курсор, рамка, подсветка строк. Выключенная картинка меню
+; WindowFromPoint не находит, под курсором тогда само окно
+Func __FluentMenu_MoveKeyCheck(ByRef $tPoint)
+	Local Const $VK_SHIFT = 0x10
+	Local $bOn = False, $hUnder = _WinAPI_WindowFromPoint($tPoint)
+	If $hUnder = $__g_hFluentMenuGui And _WinAPI_GetForegroundWindow() = $__g_hFluentMenuGui Then
+		Local $aState = DllCall('user32.dll', 'short', 'GetAsyncKeyState', 'int', $VK_SHIFT)
+		$bOn = Not @error And BitAND($aState[0], 0x8000) <> 0
+	EndIf
+	If $bOn = $__g_bFluentMenuMoveKey Then Return
+	$__g_bFluentMenuMoveKey = $bOn
+	; Курсор над контролом панели уже поставил сам контрол
+	If $hUnder = $__g_hFluentMenuGui Then _WinAPI_SetCursor(_WinAPI_LoadCursor(0, $bOn ? $IDC_SIZEALL : $IDC_ARROW))
+	__FluentMenu_DwmBorder()
+	__FluentMenu_Render()
+EndFunc   ;==>__FluentMenu_MoveKeyCheck
 
 
 ; Shift и кнопка мыши: окно тащит система, как за заголовок. SC_MOVE | HTCAPTION -

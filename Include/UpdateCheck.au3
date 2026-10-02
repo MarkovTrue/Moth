@@ -20,6 +20,8 @@
 ; _UpdateCheck_CompareVersions
 ; _UpdateCheck_IsDue
 ; _UpdateCheck_ReleasesUrl
+; _UpdateCheck_DownloadUrl
+; _UpdateCheck_ReadmeUrl
 ; ===============================================================================================================================
 
 
@@ -141,3 +143,16 @@ EndFunc   ;==>_UpdateCheck_IsDue
 Func _UpdateCheck_ReleasesUrl($sRepo)
 	Return 'https://github.com/' & $sRepo & '/releases/latest'
 EndFunc   ;==>_UpdateCheck_ReleasesUrl
+
+
+; Прямая ссылка на архив $sAsset последнего релиза: GitHub переадресует её на файл нужного тега
+Func _UpdateCheck_DownloadUrl($sRepo, $sAsset)
+	Return 'https://github.com/' & $sRepo & '/releases/latest/download/' & $sAsset
+EndFunc   ;==>_UpdateCheck_DownloadUrl
+
+
+; Описание программы: README с главной страницы репозитория или файл $sFile ветки $sBranch
+Func _UpdateCheck_ReadmeUrl($sRepo, $sFile = '', $sBranch = 'main')
+	If $sFile = '' Then Return 'https://github.com/' & $sRepo & '#readme'
+	Return 'https://github.com/' & $sRepo & '/blob/' & $sBranch & '/' & $sFile
+EndFunc   ;==>_UpdateCheck_ReadmeUrl
