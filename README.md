@@ -1,6 +1,6 @@
 [Русский](README.md) | [English](README.EN.md)
 
-# <img src="Preview/HeaderIcon.png" width="30" height="36" align="absmiddle" alt=""> Moth - сжатие изображений без потерь
+# <img src="Preview/HeaderIcon.png" width="30" height="36" align="absmiddle" alt=""> Moth - сжатие изображений без потерь. Новый релиз еще в работе.
 
 [![Release](https://img.shields.io/github/v/release/MarkovTrue/Moth?label=Release&color=%238a2be2&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xMSAyMS43M2EyIDIgMCAwIDAgMiAwbDctNEEyIDIgMCAwIDAgMjEgMTZWOGEyIDIgMCAwIDAtMS0xLjczbC03LTRhMiAyIDAgMCAwLTIgMGwtNyA0QTIgMiAwIDAgMCAzIDh2OGEyIDIgMCAwIDAgMSAxLjczeiIvPjxwYXRoIGQ9Ik0xMiAyMlYxMiIvPjxwb2x5bGluZSBwb2ludHM9IjMuMjkgNyAxMiAxMiAyMC43MSA3Ii8%2BPC9zdmc%2B)](https://github.com/MarkovTrue/Moth/releases) [![Downloads](https://img.shields.io/github/downloads/MarkovTrue/Moth/total?label=Downloads&color=%230078D4&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMSAxNXY0YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0ydi00Ii8%2BPHBvbHlsaW5lIHBvaW50cz0iNyAxMCAxMiAxNSAxNyAxMCIvPjxsaW5lIHgxPSIxMiIgeDI9IjEyIiB5MT0iMTUiIHkyPSIzIi8%2BPC9zdmc%2B)](https://github.com/MarkovTrue/Moth/releases)
 
@@ -84,21 +84,29 @@ JPEG в JXL переводится без потерь и обратимо: фа
 ## Окна выбора
 Пункты с многоточием открывают окно со списком: «Изменить палитру…», «Конвертировать…», «Изменить размер…».
 В списке только действия, доступные формату файла. Действие уходит в работу для всех выделенных файлов.
+Клик с Ctrl не закрывает окно: так можно взять несколько действий. Shift и мышь двигают окно.
 
 ![Окно выбора](Preview/Convert.png)
 
 ### Изменение размера
-В окне размеров сверху готовые размеры, с самого начала там Full HD и 2K. Ниже строка своего размера и панель, которая её собирает.
+В окне размеров сверху готовые размеры, с самого начала там 50%, Full HD и 2K. Ниже строка своего размера и панель, которая её собирает.
 
 ![Окно размеров](Preview/Resizer.png)
 
 * Подпись и постфикс строки меняются на лету, пока правите поля. В следующий раз в ней будет последний применённый размер
-* Размер задают поля, которые правили последними: ввод процентов очищает ширину и высоту, и наоборот
+* Размер задают проценты или ширина с высотой: какие поля в фокусе. Переход в другие поля сразу переключает их, пустые поля получают подсказанное серым. Ввод очищает поля другого вида
 * «Вписать»: картинка целиком внутри размера. «Заполнить»: картинка покрывает размер, лишнее остаётся. «Обрезать»: лишнее обрезается
 * Размер без увеличения помечен в подписи стрелкой `↓`
-* Алгоритм: «Фото» - Lanczos, «Графика» - Catrom, «Пиксели» - Point
 
-Результат сохраняется рядом, постфикс по размеру: `_per50`, `_res1920x1080`, `_res1280x`.
+Нижний ряд - алгоритм, которым ImageMagick пересчитывает пиксели. Его выбирают по тому, что на картинке:
+
+| Кнопка | Фильтр | Для чего | Постфикс |
+|---|---|---|---|
+| **Фото** | Lanczos | Фотографии. Мелкие детали остаются чёткими при уменьшении. На резких контрастных краях бывает лёгкий светлый ореол | - |
+| **Графика** | Catmull-Rom | Скриншоты, схемы, текст, логотипы. Почти так же резко, но ореолов вокруг букв и линий меньше, заливки остаются ровными | `_gfx` |
+| **Пиксели** | Point, ближайший сосед | Пиксель-арт и мелкие иконки. Цвета соседних пикселей не смешиваются, края остаются ступеньками. Чище всего при увеличении в целое число раз: 200%, 300% | `_px` |
+
+Результат сохраняется рядом, постфикс по размеру, режиму и алгоритму: `_per50`, `_res1920x1080`, `_res1280x`, `_res800x800_crop_gfx`.
 
 
 ## Настройки
@@ -124,7 +132,7 @@ JPEG в JXL переводится без потерь и обратимо: фа
 * [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: сжатие без потерь, с потерями и для WEB
 * [`ImageWorsener 1.3.5`](https://entropymine.com/imageworsener/) – BMP: сжатие без потерь
 * [`libheif 1.23.4`](https://github.com/strukturag/libheif) – конвертация в HEIC, кодировщик x265
-* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – конвертация, палитра, AVIF и чтение HEIC
+* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – конвертация, палитра, изменение размера, AVIF и чтение HEIC
 
 После конвертации и палитры итог дожимается той же утилитой, что и при сжатии без потерь.
 

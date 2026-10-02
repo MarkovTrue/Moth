@@ -86,21 +86,29 @@ Empty cells are not an oversight:
 ## Choice windows
 Items with an ellipsis open a window with a list: "Change palette…", "Convert…", "Resize…".
 The list holds only the actions the file format supports. The action runs for all selected files.
+Ctrl click keeps the window open, so you can pick several actions. Shift and the mouse move the window.
 
 ![Choice window](Preview/Convert.en.png)
 
 ### Resize
-The resize window has ready sizes on top, Full HD and 2K are there from the start. Below is the row of your own size and the panel that builds it.
+The resize window has ready sizes on top, 50%, Full HD and 2K are there from the start. Below is the row of your own size and the panel that builds it.
 
 ![Resize window](Preview/Resizer.en.png)
 
 * The title and postfix of the row change as you edit the fields. Next time the row holds the last applied size
-* The size comes from the fields edited last: typing a percent clears width and height, and the other way round
+* The size comes from the percent or from width and height, whichever fields have the focus. Moving to the other fields switches at once, empty fields get the gray hint. Typing clears the fields of the other kind
 * "Fit": the whole picture fits into the size. "Fill": the picture covers the size, the extra stays. "Crop": the extra is cut off
 * A size that does not enlarge has a `↓` in its title
-* Algorithm: "Photo" is Lanczos, "Graphics" is Catrom, "Pixels" is Point
 
-The result is saved next to the original, with a postfix by size: `_per50`, `_res1920x1080`, `_res1280x`.
+The bottom row is the algorithm ImageMagick uses to recalculate the pixels. Pick it by what the picture holds:
+
+| Button | Filter | Best for | Postfix |
+|---|---|---|---|
+| **Photo** | Lanczos | Photos. Fine details stay sharp when downscaling. Sharp high-contrast edges may get a slight light halo | - |
+| **Graphics** | Catmull-Rom | Screenshots, diagrams, text, logos. Almost as sharp, with less halo around letters and lines, flat fills stay even | `_gfx` |
+| **Pixels** | Point, nearest neighbor | Pixel art and small icons. Neighbor pixels are not blended, edges stay stepped. Cleanest when enlarging by a whole number: 200%, 300% | `_px` |
+
+The result is saved next to the original, with a postfix by size, mode and algorithm: `_per50`, `_res1920x1080`, `_res1280x`, `_res800x800_crop_gfx`.
 
 
 ## Settings
@@ -126,7 +134,7 @@ Everything is already in the archive, in the `Apps` folder:
 * [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: lossless, lossy and WEB compression
 * [`ImageWorsener 1.3.5`](https://entropymine.com/imageworsener/) – BMP: lossless compression
 * [`libheif 1.23.4`](https://github.com/strukturag/libheif) – conversion to HEIC, x265 encoder
-* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, AVIF and reading HEIC
+* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF and reading HEIC
 
 After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 
