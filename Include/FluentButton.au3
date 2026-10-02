@@ -210,12 +210,13 @@ Func __FluentButton_Render($iIndex)
 	Local $iFg = $bEnabled ? $g_iFluentText2 : $g_iFluentText3
 	Local $nRad = $gc_nFluentRadCtrl
 
+	; Включённая кнопка - как выбранный сегмент: светлая плашка с рамкой и яркая иконка.
+	; Акцентом не красится: синий здесь читался как выделение, а не как нажатое
 	Switch $iKind
 		Case $FLUENTBUTTON_SUBTLE
 			If $bOn Then
-				_FluentBox($hGfx, 0, 0, $iW, $iH, $nRad, _
-						_FluentArgb($g_iFluentAccent, 34), _FluentArgb($g_iFluentAccent, 110))
-				$iFg = $g_iFluentAccent
+				_FluentBox($hGfx, 0, 0, $iW, $iH, $nRad, _FluentArgb($g_iFluentSegSelBg), _FluentArgb($g_iFluentSegSelBorder))
+				$iFg = $g_iFluentSegSelText
 			ElseIf $bHover Then
 				_FluentFill($hGfx, 0, 0, $iW, $iH, $nRad, _FluentArgb($g_iFluentHover))
 			EndIf
@@ -231,11 +232,10 @@ Func __FluentButton_Render($iIndex)
 			; Рамка ровная по периметру: подчёркивание снизу делало нижние углы площе
 			Local $iBg = $bHover ? $g_iFluentHover : $g_iFluentCtrlBg
 			_FluentBox($hGfx, 0, 0, $iW, $iH, $nRad, _FluentArgb($iBg), _FluentArgb($g_iFluentCtrlBorder))
-			; Включённая кнопка подсвечивается поверх рамки так же, как $FLUENTBUTTON_SUBTLE
+			; Включённая кнопка ложится поверх рамки так же, как $FLUENTBUTTON_SUBTLE
 			If $bOn Then
-				_FluentBox($hGfx, 0, 0, $iW, $iH, $nRad, _
-						_FluentArgb($g_iFluentAccent, 34), _FluentArgb($g_iFluentAccent, 110))
-				$iFg = $g_iFluentAccent
+				_FluentBox($hGfx, 0, 0, $iW, $iH, $nRad, _FluentArgb($g_iFluentSegSelBg), _FluentArgb($g_iFluentSegSelBorder))
+				$iFg = $g_iFluentSegSelText
 			EndIf
 	EndSwitch
 

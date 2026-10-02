@@ -37,10 +37,12 @@
 ; У подсвеченной строки кнопки в рамках с лёгкой заливкой, у кнопки под курсором заливка ярче,
 ; недоступная кнопка - в рамке без заливки.
 ; Клавиши: стрелки, Home, End, Enter – выбрать, пробел – переключить кнопку.
-; Пункт можно выбрать, не закрывая окна (_FluentMenu_SetPick): клик или Enter с Ctrl или Shift.
+; Строка под нажатой кнопкой мыши заливается тусклее наведения: клик виден, пока кнопка нажата.
+; Пункт можно выбрать, не закрывая окна (_FluentMenu_SetPick): клик или Enter с Ctrl.
 ; Пункт уходит приложению, окно остаётся, и так выбирают несколько пунктов подряд. Приложение
-; помечает выбранные (_FluentMenu_SetMarked): черта цвета акцента у левого края строки.
+; помечает выбранные (_FluentMenu_SetMarked): подпись пункта тускнеет.
 ; Окно, которое выбор поднял (запущенная программа), активность у меню не отнимает.
+; Shift и левая кнопка мыши в любом месте окна, кроме контролов панели, тащат окно.
 ;
 ; Шрифт – системный шрифт меню (lfMenuFont из NONCLIENTMETRICS): гарнитура, размер,
 ; жирность и курсив те же, что у контекстного меню проводника.
@@ -116,7 +118,7 @@ Global $__g_aFluentMenuEnabled[0]
 Global $__g_iFluentMenuHot = -1, $__g_bFluentMenuHotMouse = False, $__g_iFluentMenuBtnHot = 0
 Global $__g_iFluentMenuPressRow = -1, $__g_iFluentMenuPressBtn = 0, $__g_bFluentMenuPressed = False
 ; Клик по кнопке ждёт главного цикла окна: обработчик сообщения не двигает окно и строки.
-; Выбор без закрытия ждёт так же, как кнопка 6
+; Выбор без закрытия ждёт так же, как кнопка 6, перетаскивание окна - как 7
 Global $__g_iFluentMenuPendingRow = -1, $__g_iFluentMenuPendingBtn = 0
 ; Где курсор стоял на экране при последнем WM_MOUSEMOVE. Система шлёт его и без
 ; движения мыши (окно появилось под курсором, перерисовка), причём с разными
@@ -126,8 +128,8 @@ Global $__g_iFluentMenuResult = -1, $__g_bFluentMenuDone = False, $__g_bFluentMe
 ; Windows 11 скругляет окно и рисует рамку сама, на Windows 10 рамку рисуем мы
 Global $__g_bFluentMenuDwmFrame = False
 ; Пустышки для клавиш: [ControlID, клавиша]
-Global $__g_aFluentMenuKeys[8][2] = [[0, '{UP}'], [0, '{DOWN}'], [0, '{HOME}'], [0, '{END}'], [0, '{ENTER}'], [0, '{SPACE}'], _
-		[0, '^{ENTER}'], [0, '+{ENTER}']]
+Global $__g_aFluentMenuKeys[7][2] = [[0, '{UP}'], [0, '{DOWN}'], [0, '{HOME}'], [0, '{END}'], [0, '{ENTER}'], [0, '{SPACE}'], _
+		[0, '^{ENTER}']]
 
 
 ; Черта перед пунктами $aRows (индексы) на один _FluentMenu_Show: группы в списке
@@ -168,14 +170,14 @@ Func _FluentMenu_SetAdd($sOnAdd)
 EndFunc   ;==>_FluentMenu_SetAdd
 
 
-; Выбор без закрытия окна на один _FluentMenu_Show: клик или Enter с Ctrl или Shift.
+; Выбор без закрытия окна на один _FluentMenu_Show: клик или Enter с Ctrl.
 ; $sOnPick получает индекс пункта, окно остаётся открытым
 Func _FluentMenu_SetPick($sOnPick)
 	$__g_sFluentMenuOnPick = $sOnPick
 EndFunc   ;==>_FluentMenu_SetPick
 
 
-; Метка выбранного пункта открытого окна: черта цвета акцента у левого края строки
+; Метка выбранного пункта открытого окна: подпись тусклее, между обычной и недоступной
 Func _FluentMenu_SetMarked($iRow, $bMarked)
 	If Not $__g_hFluentMenuGui Or $iRow < 0 Or $iRow >= UBound($__g_aFluentMenuMarked) Then Return
 	If $__g_aFluentMenuMarked[$iRow] = $bMarked Then Return
@@ -761,15 +763,15 @@ Func __FluentMenu_Render()
 
 	Local $iIconDY = Int(($gc_iFluentMenuItemH - $gc_iFluentMenuIcon) / 2), $iY, $iHintW, $iTextW
 
+	; Нажатая строка заливается между наведением и фоном: как кнопка под пальцем
 	Local $iHot = __FluentMenu_ShownHot()
+	Local $bPressed = $__g_bFluentMenuPressed And Not $__g_iFluentMenuPressBtn And $__g_iFluentMenuPressRow = $iHot
 	If $iHot >= 0 Then _FluentFill($hGfx, $gc_iFluentMenuPad, __FluentMenu_RowY($iHot), $iRowW, $gc_iFluentMenuItemH, _
-			$gc_nFluentRadTrack, _FluentArgb($g_iFluentHover))
+			$gc_nFluentRadTrack, _FluentArgb($bPressed ? __FluentMenu_Mix($g_iFluentHover, $g_iFluentCard) : $g_iFluentHover))
+	Local $iMarkedText = __FluentMenu_Mix($g_iFluentText1, $g_iFluentText3), $iTextColor
 
 	For $i = 0 To UBound($__g_aFluentMenuTexts) - 1
 		$iY = __FluentMenu_RowY($i)
-		; Метка выбранного: черта 3x16 по высоте иконки, как у выбранного раздела в навигации Windows 11
-		If $__g_aFluentMenuMarked[$i] Then _FluentFill($hGfx, $gc_iFluentMenuPad + 1, $iY + $iIconDY, 3, $gc_iFluentMenuIcon, 1.5, _
-				_FluentArgb($g_iFluentAccent))
 		If $__g_aFluentMenuIcons[$i] Then _GDIPlus_GraphicsDrawImageRect($hGfx, $__g_aFluentMenuIcons[$i], _
 				$gc_iFluentMenuIconX, $iY + $iIconDY, $gc_iFluentMenuIcon, $gc_iFluentMenuIcon)
 		; Пояснение столбцом; у живого пункта оно меняется и может оказаться шире столбца.
@@ -782,8 +784,10 @@ Func __FluentMenu_Render()
 					$iHintW + 4, $gc_iFluentMenuItemH, $hFont, _FluentArgb($g_iFluentText3), 2, 1)
 		EndIf
 		$iTextW = $iRight - $gc_iFluentMenuTextX - ($iHintW ? $gc_iFluentMenuHintGap + $iHintW : 0)
+		; Выбранный без закрытия пункт тускнеет, недоступный - серый
+		$iTextColor = $__g_aFluentMenuMarked[$i] ? $iMarkedText : $g_iFluentText1
 		_FluentText($hGfx, $__g_aFluentMenuTexts[$i], $gc_iFluentMenuTextX, $iY, $iTextW + 4, $gc_iFluentMenuItemH, $hFont, _
-				_FluentArgb($__g_aFluentMenuEnabled[$i] ? $g_iFluentText1 : $g_iFluentText3), 0, 1, 3)
+				_FluentArgb($__g_aFluentMenuEnabled[$i] ? $iTextColor : $g_iFluentText3), 0, 1, 3)
 		If $__g_aFluentMenuEnabled[$i] Then __FluentMenu_DrawBtn($hGfx, $i, $iY)
 	Next
 
@@ -1108,8 +1112,8 @@ Func __FluentMenu_OnKey()
 
 	If __FluentMenu_EditKey($sKey) Then Return
 
-	; Enter с Ctrl или Shift выбирает тот же пункт, что Enter, но окно не закрывает
-	If $sKey = '^{ENTER}' Or $sKey = '+{ENTER}' Then
+	; Enter с Ctrl выбирает тот же пункт, что Enter, но окно не закрывает
+	If $sKey = '^{ENTER}' Then
 		$sKey = '{ENTER}'
 		If $__g_sFluentMenuOnPick <> '' Then
 			Local $iRow = $__g_iFluentMenuHot
@@ -1192,25 +1196,33 @@ EndFunc   ;==>__FluentMenu_WmMouseMove
 
 
 ; Выбор по отпусканию кнопки, как в меню, и только если нажали в окне:
-; отпускание от клика, который открыл окно, не считается
+; отпускание от клика, который открыл окно, не считается. Нажатая строка видна сразу.
+; Левая кнопка с Shift тащит окно: перетаскивание ждёт главного цикла
 Func __FluentMenu_WmButtonDown($hWnd, $iMsg, $wParam, $lParam)
-	#forceref $iMsg, $wParam
+	Local Const $MK_SHIFT = 0x0004
 	If $hWnd <> $__g_hFluentMenuGui Then Return $GUI_RUNDEFMSG
+	If $iMsg = $WM_LBUTTONDOWN And BitAND($wParam, $MK_SHIFT) Then
+		$__g_iFluentMenuPendingBtn = 7
+		Return $GUI_RUNDEFMSG
+	EndIf
 	Local $iX = __FluentMenu_LoWord($lParam), $iY = __FluentMenu_LoWord(BitShift($lParam, 16))
 	$__g_bFluentMenuPressed = True
 	$__g_iFluentMenuPressRow = __FluentMenu_HitTest($iX, $iY)
 	$__g_iFluentMenuPressBtn = __FluentMenu_HitBtn($__g_iFluentMenuPressRow, $iX, $iY)
+	If $__g_iFluentMenuPressRow >= 0 And Not $__g_iFluentMenuPressBtn Then __FluentMenu_Render()
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>__FluentMenu_WmButtonDown
 
 
 ; Кнопка срабатывает, только если на ней и нажали, и отпустили;
-; остальная строка выбирает пункт, как в меню. С Ctrl или Shift - без закрытия окна
+; остальная строка выбирает пункт, как в меню. С Ctrl - без закрытия окна
 Func __FluentMenu_WmButtonUp($hWnd, $iMsg, $wParam, $lParam)
 	#forceref $iMsg
-	Local Const $MK_SHIFT = 0x0004, $MK_CONTROL = 0x0008
+	Local Const $MK_CONTROL = 0x0008
 	If $hWnd <> $__g_hFluentMenuGui Or Not $__g_bFluentMenuPressed Then Return $GUI_RUNDEFMSG
 	$__g_bFluentMenuPressed = False
+	; Нажатая строка снова как под курсором
+	If $__g_iFluentMenuPressRow >= 0 And Not $__g_iFluentMenuPressBtn Then __FluentMenu_Render()
 	Local $iX = __FluentMenu_LoWord($lParam), $iY = __FluentMenu_LoWord(BitShift($lParam, 16))
 	Local $iRow = __FluentMenu_HitTest($iX, $iY), $iBtn = __FluentMenu_HitBtn($iRow, $iX, $iY)
 	If $__g_iFluentMenuPressBtn Then
@@ -1219,7 +1231,7 @@ Func __FluentMenu_WmButtonUp($hWnd, $iMsg, $wParam, $lParam)
 			$__g_iFluentMenuPendingBtn = $iBtn
 		EndIf
 	ElseIf Not $iBtn Then
-		If $__g_sFluentMenuOnPick <> '' And BitAND($wParam, BitOR($MK_SHIFT, $MK_CONTROL)) Then
+		If $__g_sFluentMenuOnPick <> '' And BitAND($wParam, $MK_CONTROL) Then
 			; Обработчик приложения ждёт главного цикла, как и кнопки
 			$__g_iFluentMenuPendingRow = $iRow
 			$__g_iFluentMenuPendingBtn = 6
@@ -1268,6 +1280,8 @@ Func __FluentMenu_Poll()
 			__FluentMenu_Add($__g_iFluentMenuPendingRow)
 		Case 6
 			__FluentMenu_Pick($__g_iFluentMenuPendingRow)
+		Case 7
+			__FluentMenu_Drag()
 	EndSwitch
 	If $__g_bFluentMenuRefocus And Not $__g_bFluentMenuDone Then
 		$__g_bFluentMenuRefocus = False
@@ -1286,6 +1300,18 @@ Func __FluentMenu_Poll()
 	If $__g_bFluentMenuWasActive Or $bInside Then Return
 	If __FluentMenu_MouseDown() Then $__g_bFluentMenuDone = True
 EndFunc   ;==>__FluentMenu_Poll
+
+
+; Shift и кнопка мыши: окно тащит система, как за заголовок. SC_MOVE | HTCAPTION -
+; модальный цикл перетаскивания, он кончается, когда кнопку отпустили
+Func __FluentMenu_Drag()
+	If Not __FluentMenu_MouseDown() Then Return
+	DllCall('user32.dll', 'bool', 'ReleaseCapture')
+	_SendMessage($__g_hFluentMenuGui, $WM_SYSCOMMAND, 0xF012, 0) ; SC_MOVE | HTCAPTION
+	; Курсор после перетаскивания над другой строкой
+	$__g_iFluentMenuLastX = -1
+	$__g_iFluentMenuLastY = -1
+EndFunc   ;==>__FluentMenu_Drag
 
 
 ; Нажата ли сейчас кнопка мыши: левая, правая или средняя

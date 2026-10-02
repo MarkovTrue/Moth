@@ -16,7 +16,7 @@ The actions for each format are grouped in the Moth submenu:
 ## Features
 * Works with files and folders from the context menu
 * Weekly update check, nothing is downloaded
-* Lossless and lossy compression, WEB optimization, palette reduction, conversion
+* Lossless and lossy compression, WEB optimization, palette reduction, conversion, resizing
 * Moth picks the tool for every task, and for JPEG it tries several and keeps the smallest result
 * The progress window closes by itself after a delay set in the settings, a click on the window cancels closing
 * Drag-and-drop support
@@ -67,7 +67,7 @@ All formats convert to each other, in any direction:
 
 Extensions in one row are the same format, so there is nothing to convert between them. For example, Moth skips `.jpe` to JPG or `.heif` to HEIC.
 
-The menu shows conversion to JPG and PNG right away, the other formats are in the nested "Convert ▸" menu. Each format gets only the items it supports there.
+The menu shows conversion to JPG and PNG right away, the other formats are in the "Convert…" window, see below. Each format gets only the items it supports there.
 
 For GIF and WEBP animation the first frame is converted, except GIF to WEBP and JXL and WEBP to GIF: there the animation is kept.
 
@@ -83,11 +83,31 @@ Empty cells are not an oversight:
 * The palette is offered where its result stays lossless: PNG, WEBP and JXL. JPEG and AVIF lose the palette when compressing, and GIF has at most 256 colors anyway
 
 
+## Choice windows
+Items with an ellipsis open a window with a list: "Change palette…", "Convert…", "Resize…".
+The list holds only the actions the file format supports. The action runs for all selected files.
+
+![Choice window](Preview/Convert.en.png)
+
+### Resize
+The resize window has ready sizes on top, Full HD and 2K are there from the start. Below is the row of your own size and the panel that builds it.
+
+![Resize window](Preview/Resizer.en.png)
+
+* The title and postfix of the row change as you edit the fields. Next time the row holds the last applied size
+* The size comes from the fields edited last: typing a percent clears width and height, and the other way round
+* "Fit": the whole picture fits into the size. "Fill": the picture covers the size, the extra stays. "Crop": the extra is cut off
+* A size that does not enlarge has a `↓` in its title
+* Algorithm: "Photo" is Lanczos, "Graphics" is Catrom, "Pixels" is Point
+
+The result is saved next to the original, with a postfix by size: `_per50`, `_res1920x1080`, `_res1280x`.
+
+
 ## Settings
 Language, theme, auto close and context menu options are in the settings window: `Settings.exe` or the gear in the Moth window.
 
 Everything else is in `Moth.ini`: the menu for every format, titles, icons, overwrite rule (`FilePostfix`), your own actions.
-For example, you can add a 256-color palette. After editing the file by hand, open the settings window and press OK to update the context menu.
+For example, you can add a 4096-color palette. After editing the file by hand, open the settings window and press OK to update the context menu.
 
 ### Update check
 Once a week Moth sends a single request to [GitHub releases](https://github.com/MarkovTrue/Moth/releases) to learn the latest version number. Nothing is downloaded or sent anywhere.

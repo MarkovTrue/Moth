@@ -13,6 +13,8 @@
       refresh-cw  -> Themes/Icons/Refresh.png   (проверка обновлений в настройках, 18 px)
       monitor, sun, moon -> SegSystem, SegLight, SegDark.png (сегмент темы в настройках, 14 px, как в VCLauncher)
       move-horizontal, move-vertical -> FieldWidth, FieldHeight.png (поля ширины и высоты в окне размеров, 14 px)
+      arrow-down  -> Themes/Icons/NoEnlarge.png (кнопка «Не увеличивать» в окне размеров, 16 px: та же стрелка,
+                     что ↓ в подписи пресета)
 
     После сборки скопировать PNG в MothPortable\Themes\Icons.
     Запуск: powershell -ExecutionPolicy Bypass -File Assets\BuildIcons.ps1
@@ -46,7 +48,8 @@ $map = @(
     @{ name = 'sun'            ; out = (Join-Path $IconDir 'SegLight.png')    ; sw = $null ; size = 14 },
     @{ name = 'moon'           ; out = (Join-Path $IconDir 'SegDark.png')     ; sw = $null ; size = 14 },
     @{ name = 'move-horizontal'; out = (Join-Path $IconDir 'FieldWidth.png')  ; sw = $null ; size = 14 },
-    @{ name = 'move-vertical'  ; out = (Join-Path $IconDir 'FieldHeight.png') ; sw = $null ; size = 14 }
+    @{ name = 'move-vertical'  ; out = (Join-Path $IconDir 'FieldHeight.png') ; sw = $null ; size = 14 },
+    @{ name = 'arrow-down'     ; out = (Join-Path $IconDir 'NoEnlarge.png')   ; sw = 1.5   ; size = 16 }
 )
 
 $rgb   = [System.Windows.Media.Color]::FromRgb(

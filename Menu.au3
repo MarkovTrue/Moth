@@ -45,8 +45,9 @@ Global $g_aPaths[0], $g_aPicked[0]
 ; и действие, которое она сейчас показывает. Пока поля меняет сама панель, их правка не обрабатывается
 Global $g_iResizeW = 0, $g_iResizeH = 0, $g_iResizePct = 0, $g_iResizePercent = 0
 Global $g_iResizeNoEnlarge = 0, $g_bResizeNoEnlarge = True, $g_iResizeMode = 0, $g_iResizeFilter = 0
-; Размер задают проценты или точки: те, что правили последними; окно меню, в котором стоит панель
-Global $g_bResizeByPct = True, $g_hResizeGui = 0
+; Размер задают проценты или точки: поле, где фокус или ввод; окно меню, в котором стоит панель.
+; Серые подсказки полей по ControlID
+Global $g_bResizeByPct = True, $g_hResizeGui = 0, $g_mResizeCues[]
 Global $g_iResizeLive = -1, $g_sResizeAction = '', $g_bResizeSync = False, $g_bResizePanel = False
 ; Размер первого файла выделения, 0 - неизвестен; его читает magick identify в фоне
 Global $g_iSrcW = 0, $g_iSrcH = 0, $g_iSrcPid = 0, $g_hSrcTimer = 0, $g_sSrcOut = ''
@@ -115,7 +116,7 @@ Func _Main()
 EndFunc   ;==>_Main
 
 
-; Клик с Ctrl или Shift: пункт уходит в работу, окно остаётся и помечает его
+; Клик с Ctrl: пункт уходит в работу, окно остаётся, подпись пункта тускнеет
 Func _OnPick($iRow)
 	If _MenuPick(_MenuRowAction($iRow)) Then _MenuMarks()
 EndFunc   ;==>_OnPick
@@ -201,9 +202,16 @@ Func _MenuItems($bResizer)
 
 	; Ширина окна - по длинной подписи живой строки: окно одно и то же при любом
 	; последнем размере, а строка при вводе не обрезается. Образец - с режимом и алгоритмом
-	; в постфиксе. Свою подпись строка получит при сборке панели
+	; в постфиксе, название - самое длинное из «W × H», «по ширине W» и «по высоте H».
+	; Свою подпись строка получит при сборке панели
 	$g_iResizeLive = $iCount - 1
 	Local $aLive = _ResizerLiveItem($gc_sResizeActionPrefix & 'resize_2048_1536_2_2')
+	Local $iTab = StringInStr($aLive[0], @TAB), $sTitle = StringLeft($aLive[0], $iTab - 1), $sOther
+	For $sCommand In StringSplit('resize_2048_0_0_2|resize_0_1536_0_2', '|', 2)
+		$sOther = _ActionTitle($gc_sResizeActionPrefix & $sCommand)
+		If StringLen($sOther) > StringLen($sTitle) Then $sTitle = $sOther
+	Next
+	$aLive[0] = $sTitle & StringMid($aLive[0], $iTab)
 	For $j = 0 To 3
 		$aItems[$g_iResizeLive][$j] = $aLive[$j]
 	Next
@@ -267,7 +275,7 @@ EndFunc   ;==>_OnPinToggle
 ; живая строка - пункт меню проводника, собранный из полей панели: клик или Enter отдают
 ; размер в Moth, стрелка вверх добавляет его в конец списка. Булавки только у списка:
 ; закрепляют размер уже там. Строку заполняет последний применённый размер (Last).
-; Клик с Ctrl или Shift отдаёт размер в Moth, не закрывая окна: так берут несколько.
+; Клик с Ctrl отдаёт размер в Moth, не закрывая окна: так берут несколько. Shift тащит окно.
 
 ; Крестик сразу убирает пресет из списка и из меню (_ResizerRemove).
 ; Панель: поля процентов, ширины и высоты; под ними быстрый выбор процентов либо режим
@@ -468,7 +476,7 @@ Func _ResizerPanelCreate($hGui, $iX, $iY, $iW)
 
 	; «Не увеличивать» выключено, включено - только если последний размер в точках не увеличивал картинку
 	$g_bResizeNoEnlarge = ($aLast[1] Or $aLast[2]) And Not $aLast[5]
-	$g_iResizeNoEnlarge = _FluentButton_Create('', _GetIconPath() & '\ResizeDown.ico', 16, $iX + $iW - $iRowH, $aRowY[1], _
+	$g_iResizeNoEnlarge = _FluentButton_Create('', 'NoEnlarge', 16, $iX + $iW - $iRowH, $aRowY[1], _
 			$iRowH, $iRowH, $FLUENTBUTTON_ICON)
 	GUICtrlSetTip($g_iResizeNoEnlarge, _LangFile_Get('Resizer', 'NoEnlarge', 'Do not enlarge'))
 	GUICtrlSetOnEvent($g_iResizeNoEnlarge, '_OnEvent_ResizeNoEnlarge')
@@ -574,19 +582,47 @@ Func _ResizerPanelApply()
 EndFunc   ;==>_ResizerPanelApply
 
 
-; Правка поля: размер задаёт это поле, живая строка пересобирается. Стёртое поле
-; размер не переключает: его стирают, чтобы набрать заново
+; Фокус в поле переключает размер на его вид сразу, как вкладка. Правка поля очищает
+; поля другого вида, живая строка пересобирается. Стёртое поле ничего не очищает:
+; его стирают, чтобы набрать заново
 Func _OnEvent_ResizeInput($hWnd, $iMsg, $wParam, $lParam)
 	#forceref $hWnd, $iMsg, $lParam
-	If $g_bResizeSync Or BitAND(BitShift($wParam, 16), 0xFFFF) <> $EN_CHANGE Then Return $GUI_RUNDEFMSG
 	Local $iCtrl = BitAND($wParam, 0xFFFF)
-	Switch $iCtrl
-		Case $g_iResizePct, $g_iResizeW, $g_iResizeH
+	If $iCtrl <> $g_iResizePct And $iCtrl <> $g_iResizeW And $iCtrl <> $g_iResizeH Then Return $GUI_RUNDEFMSG
+	Switch BitAND(BitShift($wParam, 16), 0xFFFF)
+		Case $EN_SETFOCUS
+			_ResizerFocusMode($iCtrl = $g_iResizePct)
+		Case $EN_CHANGE
+			If $g_bResizeSync Then Return $GUI_RUNDEFMSG
 			If GUICtrlRead($iCtrl) <> '' Then _ResizerSetByPct($iCtrl = $g_iResizePct)
 			_ResizerLiveUpdate()
 	EndSwitch
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>_OnEvent_ResizeInput
+
+
+; Фокус ушёл в поле другого вида: размер теперь с него, вторая строка меняется. Пустые поля
+; этого вида получают то, что подсказывали серым, - живая строка показывает тот же размер.
+; Без подсказки (размер файла не прочитан) проценты начинаются с 50
+Func _ResizerFocusMode($bByPct)
+	If $bByPct = $g_bResizeByPct Then Return
+	$g_bResizeByPct = $bByPct
+	If $bByPct Then
+		If GUICtrlRead($g_iResizePct) = '' Then _ResizerSetFields(Default, Default, _ResizerCueValue($g_iResizePct, 50))
+	ElseIf GUICtrlRead($g_iResizeW) = '' And GUICtrlRead($g_iResizeH) = '' Then
+		_ResizerSetFields(_ResizerCueValue($g_iResizeW), _ResizerCueValue($g_iResizeH), Default)
+	EndIf
+	_ResizerShowRow()
+	_ResizerLiveUpdate()
+EndFunc   ;==>_ResizerFocusMode
+
+
+; Число из серой подсказки поля: «≈48» даёт 48, «авто» - $vDefault
+Func _ResizerCueValue($iCtrl, $vDefault = '')
+	If Not MapExists($g_mResizeCues, $iCtrl) Then Return $vDefault
+	Local $sDigits = StringRegExpReplace($g_mResizeCues[$iCtrl], '\D', '')
+	Return $sDigits = '' ? $vDefault : Int($sDigits)
+EndFunc   ;==>_ResizerCueValue
 
 
 ; Поля панели меняет сама панель: их правка не обрабатывается. Default - поле не трогать
@@ -714,9 +750,8 @@ EndFunc   ;==>_ResizerCues
 ; Серая подсказка в пустом поле, видна и с кареткой. Текст уходит в UTF-16 как есть:
 ; _GUICtrlEdit_SetCueBanner гонит его через ANSI, и «≈» становится «?»
 Func _ResizerCue($iCtrl, $vText)
-	Local Static $mCues[]
-	If MapExists($mCues, $iCtrl) And $mCues[$iCtrl] == String($vText) Then Return
-	$mCues[$iCtrl] = String($vText)
+	If MapExists($g_mResizeCues, $iCtrl) And $g_mResizeCues[$iCtrl] == String($vText) Then Return
+	$g_mResizeCues[$iCtrl] = String($vText)
 	Local $tText = DllStructCreate('wchar[' & StringLen($vText) + 1 & ']')
 	DllStructSetData($tText, 1, $vText)
 	_SendMessage(GUICtrlGetHandle($iCtrl), $EM_SETCUEBANNER, True, $tText, 0, 'wparam', 'struct*')

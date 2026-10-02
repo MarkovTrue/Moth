@@ -219,8 +219,9 @@ Func __FluentCheck_Render($iIndex)
 	_FluentCheck_Draw($hGfx, 0, Int(($iH - $gc_iFluentCheckBox) / 2), $__g_aFluentChecks[$iIndex][5], _
 			$__g_aFluentChecks[$iIndex][6], $bEnabled)
 	Local $iTextX = $gc_iFluentCheckBox + $gc_iFluentCheckGap
+	; Подпись цветом подписей строк, как у соседних меток окна
 	If $__g_aFluentChecks[$iIndex][4] <> "" Then _FluentText($hGfx, $__g_aFluentChecks[$iIndex][4], $iTextX, 0, $iW - $iTextX, $iH, _
-			_FluentFont(), _FluentArgb($bEnabled ? $g_iFluentText1 : $g_iFluentText3), 0, 1, 3)
+			_FluentFont(), _FluentArgb($bEnabled ? $g_iFluentText2 : $g_iFluentText3), 0, 1, 3)
 
 	_FluentCanvasApply($__g_aFluentChecks[$iIndex][0], $__g_aFluentChecks[$iIndex][1], $hCanvas, $hGfx)
 EndFunc   ;==>__FluentCheck_Render
