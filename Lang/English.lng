@@ -1,0 +1,139 @@
+﻿; Moth – English
+; \n is a line break, %1 is a placeholder
+
+[Main]
+ColFile=File
+ColSize=Size
+ColNew=New
+ColPercent=Percent
+ColSaved=Saved
+ColTask=Task
+ShowInExplorer=Show in Explorer
+CopyAsPath=Copy as path
+Progress=Progress
+Complete=Complete
+Saved=Saved
+SizeTotal=Size
+Settings=Settings
+
+[Status]
+Error=error
+NotSupported=not supported
+SaveError=save error
+Skipped=skipped
+PaletteLarger=few colors
+
+[Units]
+B=B
+KB=KB
+MB=MB
+GB=GB
+TB=TB
+
+[Errors]
+OnlyX64=Only 64-bit Windows is supported.\nThe application will be closed.
+IniNotFound=Settings file not found:\n%1\n\nRestore the file or reinstall the application.
+RegistryFailed=Failed to update registry keys:\n\n%1\nThe context menu may be displayed incorrectly.
+NoDropAction=The drag-and-drop action is missing or misconfigured in the settings.
+SaveFailed=Failed to save the settings file:\n%1
+
+[Integration]
+Title=Integration of "%1"
+NoSection=The settings file has no section "%1"
+BadName=Action skipped, invalid name:\n"%1"
+NoTitle=Action "%1" skipped.\nIt is missing from the settings file or has no title.
+
+[Settings]
+Title=Settings
+Language=Language
+Theme=Theme
+ThemeSystem=System
+ThemeLight=Light
+ThemeDark=Dark
+Integrate=Add Moth to the Explorer context menu
+Folders=Show the menu for folders
+TopPosition=Show Moth at the top of the menu
+Extended=Show only on Shift + right click
+OpenIni=Moth.ini
+OpenIniTip=Open the settings file: menu items, titles and action parameters
+OK=OK
+Cancel=Cancel
+Applying=Applying…
+AutoClose=Auto close
+AutoCloseOff=Off
+AutoCloseTip=Close the Moth window this long after processing. A click on the window cancels closing
+Seconds=s
+Updates=Updates
+UpdatesOn=Check
+UpdatesOff=Do not check
+UpdatesTip=Once a week, a single request to GitHub releases, nothing is downloaded
+CheckNow=Check now
+
+[Updates]
+TitleUpdate=[update available]
+Available=Version %1 is available
+AvailableLink=Version %1 is available, download
+Checking=Checking…
+UpToDate=You have the latest version
+CheckFailed=Could not reach GitHub
+LastCheck=Last check: %1
+LastCheckNever=No checks yet
+
+[Actions]
+Moth.CompressionLossless=Lossless compression
+Moth.CompressionLosslessJpegExif=Lossless compression, keep Exif
+Moth.CompressionLosslessJpegProgressive=Lossless compression, progressive
+Moth.CompressionLossy=Lossy compression
+Moth.CompressionLossyJpegExif=Lossy compression, keep Exif
+Moth.CompressionWeb=Compression for WEB
+Moth.ColorQuantization64=Palette 64 colors
+Moth.ColorQuantization128=Palette 128 colors
+Moth.ColorQuantization256=Palette 256 colors
+Moth.ColorQuantization512=Palette 512 colors
+Moth.ColorQuantization1024=Palette 1024 colors
+Moth.ColorQuantization2048=Palette 2048 colors
+Moth.Resize50=Resize 50%
+Moth.Resize200=Resize 200%
+Moth.ConvertToJpg=Convert to JPG
+Moth.ConvertToJfif=Convert to JFIF
+Moth.ConvertToPng=Convert to PNG
+Moth.ConvertToWebp=Convert to WEBP
+Moth.ConvertToJxl=Convert to JXL
+Moth.ConvertToAvif=Convert to AVIF
+Moth.ConvertToHeic=Convert to HEIC
+Moth.ConvertToGif=Convert to GIF
+Moth.ConvertToBmp=Convert to BMP
+Moth.Convert=Convert…
+Moth.ColorQuantization=Change palette…
+Moth.Resizer=Resize…
+
+; Short titles inside the "Convert" submenu (Group=)
+[ActionsInGroup]
+Moth.ConvertToWebp=to WEBP
+Moth.ConvertToAvif=to AVIF
+Moth.ConvertToHeic=to HEIC
+Moth.ConvertToJxl=to JXL
+Moth.ConvertToGif=to GIF
+Moth.ConvertToBmp=to BMP
+Moth.ConvertToJfif=to JFIF
+
+; "Resize…" window. A preset: MenuTitle, %1 - its size ("50%", "1920 × 1080", "to width 1920")
+[Resizer]
+MenuTitle=Size %1
+Width=to width %1
+Height=to height %1
+FieldWidth=Width
+FieldHeight=Height
+FieldPercent=Percent
+Auto=auto
+LiveEmpty=Enter a size to build a menu item
+ModeFit=Fit
+ModeFill=Fill
+ModeCrop=Crop
+ModeFitTip=The whole picture fits into the size
+ModeFillTip=The picture covers the size, the extra stays
+ModeCropTip=The picture covers the size, the extra is cut off
+FilterPhoto=Photo
+FilterGraphics=Graphics
+FilterPixels=Pixels
+NoEnlarge=Do not enlarge

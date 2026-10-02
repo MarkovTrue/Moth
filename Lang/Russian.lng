@@ -1,0 +1,139 @@
+﻿; Moth – русский язык
+; \n – перевод строки, %1 – место для подстановки
+
+[Main]
+ColFile=Файл
+ColSize=Размер
+ColNew=Новый
+ColPercent=Процент
+ColSaved=Сжатие
+ColTask=Задача
+ShowInExplorer=Показать в проводнике
+CopyAsPath=Копировать как путь
+Progress=Прогресс
+Complete=Завершено
+Saved=Сжатие
+SizeTotal=Размер
+Settings=Настройки
+
+[Status]
+Error=ошибка
+NotSupported=не поддерживается
+SaveError=ошибка сохранения
+Skipped=пропуск
+PaletteLarger=мало цветов
+
+[Units]
+B=Б
+KB=КБ
+MB=МБ
+GB=ГБ
+TB=ТБ
+
+[Errors]
+OnlyX64=Поддерживаются только 64-битные ОС.\nПриложение будет закрыто.
+IniNotFound=Не найден файл настроек:\n%1\n\nВосстановите файл или переустановите приложение.
+RegistryFailed=Не удалось обновить ключи реестра:\n\n%1\nКонтекстное меню может отображаться некорректно.
+NoDropAction=Действие при перетаскивании отсутствует в настройках или настроено некорректно.
+SaveFailed=Не удалось сохранить файл настроек:\n%1
+
+[Integration]
+Title=Интеграция формата "%1"
+NoSection=В файле настроек нет секции "%1"
+BadName=Действие пропущено, недопустимое название:\n"%1"
+NoTitle=Действие "%1" пропущено.\nЕго нет в файле настроек, либо у него нет заголовка.
+
+[Settings]
+Title=Настройки
+Language=Язык
+Theme=Тема
+ThemeSystem=Системная
+ThemeLight=Светлая
+ThemeDark=Тёмная
+Integrate=Добавить Moth в контекстное меню проводника
+Folders=Показывать меню для папок
+TopPosition=Показывать Moth вверху меню
+Extended=Показывать только по Shift + правый клик
+OpenIni=Moth.ini
+OpenIniTip=Открыть файл настроек: состав меню, названия и параметры действий
+OK=ОК
+Cancel=Отмена
+Applying=Применяю…
+AutoClose=Автозакрытие
+AutoCloseOff=Выкл
+AutoCloseTip=Через сколько секунд после обработки закрыть окно Moth. Клик по окну отменяет закрытие
+Seconds=с
+Updates=Обновления
+UpdatesOn=Проверять
+UpdatesOff=Не проверять
+UpdatesTip=Раз в неделю один запрос к релизам на GitHub, ничего не скачивается
+CheckNow=Проверить сейчас
+
+[Updates]
+TitleUpdate=[доступно обновление]
+Available=Доступна версия %1
+AvailableLink=Доступна версия %1, скачать
+Checking=Проверка…
+UpToDate=Установлена последняя версия
+CheckFailed=Не удалось связаться с GitHub
+LastCheck=Последняя проверка: %1
+LastCheckNever=Проверок ещё не было
+
+[Actions]
+Moth.CompressionLossless=Сжатие без потерь
+Moth.CompressionLosslessJpegExif=Сжатие без потерь Exif
+Moth.CompressionLosslessJpegProgressive=Сжатие без потерь Progressive
+Moth.CompressionLossy=Сжатие с потерями
+Moth.CompressionLossyJpegExif=Сжатие с потерями Exif
+Moth.CompressionWeb=Сжатие для WEB
+Moth.ColorQuantization64=Палитра 64 цвета
+Moth.ColorQuantization128=Палитра 128 цветов
+Moth.ColorQuantization256=Палитра 256 цветов
+Moth.ColorQuantization512=Палитра 512 цветов
+Moth.ColorQuantization1024=Палитра 1024 цвета
+Moth.ColorQuantization2048=Палитра 2048 цветов
+Moth.Resize50=Изменить размер 50%
+Moth.Resize200=Изменить размер 200%
+Moth.ConvertToJpg=Конвертировать в JPG
+Moth.ConvertToJfif=Конвертировать в JFIF
+Moth.ConvertToPng=Конвертировать в PNG
+Moth.ConvertToWebp=Конвертировать в WEBP
+Moth.ConvertToJxl=Конвертировать в JXL
+Moth.ConvertToAvif=Конвертировать в AVIF
+Moth.ConvertToHeic=Конвертировать в HEIC
+Moth.ConvertToGif=Конвертировать в GIF
+Moth.ConvertToBmp=Конвертировать в BMP
+Moth.Convert=Конвертировать…
+Moth.ColorQuantization=Изменить палитру…
+Moth.Resizer=Изменить размер…
+
+; Короткие подписи внутри подменю «Конвертировать» (Group=)
+[ActionsInGroup]
+Moth.ConvertToWebp=в WEBP
+Moth.ConvertToAvif=в AVIF
+Moth.ConvertToHeic=в HEIC
+Moth.ConvertToJxl=в JXL
+Moth.ConvertToGif=в GIF
+Moth.ConvertToBmp=в BMP
+Moth.ConvertToJfif=в JFIF
+
+; Окно «Изменить размер…». Пресет: MenuTitle, %1 - его размер («50%», «1920 × 1080», «по ширине 1920»)
+[Resizer]
+MenuTitle=Размер %1
+Width=по ширине %1
+Height=по высоте %1
+FieldWidth=Ширина
+FieldHeight=Высота
+FieldPercent=Проценты
+Auto=авто
+LiveEmpty=Введите размер, здесь появится пункт меню
+ModeFit=Вписать
+ModeFill=Заполнить
+ModeCrop=Обрезать
+ModeFitTip=Картинка целиком внутри размера
+ModeFillTip=Картинка покрывает размер, лишнее остаётся
+ModeCropTip=Картинка покрывает размер, лишнее обрезается
+FilterPhoto=Фото
+FilterGraphics=Графика
+FilterPixels=Пиксели
+NoEnlarge=Не увеличивать

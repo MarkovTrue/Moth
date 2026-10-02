@@ -2,10 +2,16 @@
 
 # AutoIt / compiled outputs
 Moth.ini
-Resiser.au3
 Settings.au3
 
 # IDE / редакторы
+CLAUDE.md
+.claude/
 .vscode/
 BackUp/
 Tests/
+
+# Preview: в git только картинки README, скрипты сборки превью остаются локально
+Preview/*
+!Preview/*.png
+!Preview/*.svg
