@@ -1,6 +1,6 @@
 [Русский](README.md) | [English](README.EN.md)
 
-# <img src="Preview/HeaderIcon.png" width="30" height="36" align="absmiddle" alt=""> Moth - lossless image compression
+# <img src="Preview/HeaderIcon.png" width="30" height="36" align="absmiddle" alt=""> Moth - lossless image compression. A new release is in progress.
 
 [![Release](https://img.shields.io/github/v/release/MarkovTrue/Moth?label=Release&color=%238a2be2&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xMSAyMS43M2EyIDIgMCAwIDAgMiAwbDctNEEyIDIgMCAwIDAgMjEgMTZWOGEyIDIgMCAwIDAtMS0xLjczbC03LTRhMiAyIDAgMCAwLTIgMGwtNyA0QTIgMiAwIDAgMCAzIDh2OGEyIDIgMCAwIDAgMSAxLjczeiIvPjxwYXRoIGQ9Ik0xMiAyMlYxMiIvPjxwb2x5bGluZSBwb2ludHM9IjMuMjkgNyAxMiAxMiAyMC43MSA3Ii8%2BPC9zdmc%2B)](https://github.com/MarkovTrue/Moth/releases) [![Downloads](https://img.shields.io/github/downloads/MarkovTrue/Moth/total?label=Downloads&color=%230078D4&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMSAxNXY0YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0ydi00Ii8%2BPHBvbHlsaW5lIHBvaW50cz0iNyAxMCAxMiAxNSAxNyAxMCIvPjxsaW5lIHgxPSIxMiIgeDI9IjEyIiB5MT0iMTUiIHkyPSIzIi8%2BPC9zdmc%2B)](https://github.com/MarkovTrue/Moth/releases)
 
@@ -15,22 +15,20 @@ The actions for each format are grouped in the Moth submenu:
 
 ## Features
 * Works with files and folders from the context menu
-* Weekly update check, nothing is downloaded
-* Lossless and lossy compression, WEB optimization, palette reduction, conversion, resizing
-* Moth picks the tool for every task, and for JPEG it tries several and keeps the smallest result
+* Lossless and lossy compression, WEB optimization, palette, conversion, resizing
 * The progress window closes by itself after a delay set in the settings, a click on the window cancels closing
 * Drag-and-drop support
-* The file list updates on the fly: add more files while Moth is working
+* The file list updates on the fly, you can add to the queue while Moth is working
 * Flexible overwrite rules: by default only lossless compression overwrites the file
-* Light and dark theme, English and Russian
+* Light and dark theme, English and Russian, update check
 * Compression formats: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
 * Conversion formats: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
 
 
 ## Installation
 1. Unpack the archive to any folder, for example `C:\Program Files\Moth`
-2. Run `Settings.exe`, tick "Add Moth to the Explorer context menu" and press OK
-3. Right-click an image or a folder, the **Moth** item
+2. Run `Settings.exe`, tick "Add to the Explorer context menu" and press OK
+3. The `Moth` item appears in the Explorer context menu
 
 To remove Moth from the menu, untick the same box. If you move the Moth folder, open the settings and press OK again.
 
@@ -41,17 +39,13 @@ To remove Moth from the menu, untick the same box. If you move the Moth folder, 
 
 | Action | JPEG | JFIF | PNG | WEBP | JXL | AVIF | GIF | BMP |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **Lossless compression**<br><sub>Exif and other metadata are removed, not a single pixel changes</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
-| **Lossless compression, keep Exif** | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
-| **Lossy compression**<br><sub>No visible changes, the result is saved next to it with `_lossy`</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Compression for WEB**<br><sub>Stronger, but gentle to gradients, saved with `_web`</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Palette 512 and 2048 colors**<br><sub>Fewer colors, Hilbert curve dithering</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
-
-JPEG means `.jpg`, `.jpeg` and `.jpe` files.
+| **Lossless compression**<br><sub>Compression algorithms are tried to reduce<br>the size. Exif and metadata are removed too.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
+| **Lossless, keep Exif / metadata**<br><sub>The same, but Exif and metadata are kept.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
+| **Lossy compression**<br><sub>Careful compression with no visible changes.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
+| **Compression for WEB**<br><sub>Stronger compression, but gentle to gradients.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
+| **Palette change**<br><sub>Fewer colors to reduce the size.<br>Hilbert curve dithering.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
 
 ### Conversion
-
-All formats convert to each other, in any direction:
 
 | Format | Files | What you get |
 |---|---|---|
@@ -65,6 +59,8 @@ All formats convert to each other, in any direction:
 | **GIF** | `.gif` | 256 colors with dithering, WEBP animation is kept |
 | **BMP** | `.bmp` | Uncompressed, transparency is filled with white |
 
+All formats convert to each other, in any direction.
+
 Extensions in one row are the same format, so there is nothing to convert between them. For example, Moth skips `.jpe` to JPG or `.heif` to HEIC.
 
 The menu shows conversion to JPG and PNG right away, the other formats are in the "Convert…" window, see below. Each format gets only the items it supports there.
@@ -76,50 +72,35 @@ Colors do not change. If an image has a color profile other than sRGB, such as D
 JPEG to JXL is lossless and reversible: the file gets about 15–20% smaller, and converting such a JXL back to JPG restores the original JPEG byte for byte.
 
 Empty cells are not an oversight:
-* AVIF and HEIC cannot be recompressed without loss: the available tools either change pixels or only drop the color profile
-* HEIC is not compressed: it can only be converted to and from
-* BMP stores the image uncompressed, lossy BMP makes no sense: convert it to JPG, WEBP or JXL instead
-* Animated WEBP is not compressed: cwebp cannot handle animation. Moth reports "not supported", and converting to GIF keeps the animation
+* AVIF and HEIC are not compressed losslessly, and removing the color profile is not desirable.
+* BMP stores the image uncompressed, lossy BMP makes no sense, converting is better.
 * The palette is offered where its result stays lossless: PNG, WEBP and JXL. JPEG and AVIF lose the palette when compressing, and GIF has at most 256 colors anyway
 
 
 ## Choice windows
-Items with an ellipsis open a window with a list: "Change palette…", "Convert…", "Resize…".
-The list holds only the actions the file format supports. The action runs for all selected files.
-Ctrl click keeps the window open, so you can pick several actions. Shift and the mouse move the window.
+### Extended list
+Items with an ellipsis open a window with a list. The list holds only the actions the file format supports.
 
 ![Choice window](Preview/Convert.en.png)
 
 ### Resize
-The resize window has ready sizes on top, 50%, Full HD and 2K are there from the start. Below is the row of your own size and the panel that builds it.
+The resize window has ready sizes on top, below them the row of your own size and the panel that builds it.
 
 ![Resize window](Preview/Resizer.en.png)
 
 * The title and postfix of the row change as you edit the fields. Next time the row holds the last applied size
 * The size comes from the percent or from width and height, whichever fields have the focus. Moving to the other fields switches at once, empty fields get the gray hint. Typing clears the fields of the other kind
-* "Fit": the whole picture fits into the size. "Fill": the picture covers the size, the extra stays. "Crop": the extra is cut off
 * A size that does not enlarge has a `↓` in its title
 
-The bottom row is the smoothing mode: the filter ImageMagick uses to recalculate the pixels. Pick it by what the picture holds:
+The bottom row is the smoothing mode: how to smooth when scaling. Pick it by what the picture holds:
 
 | Button | Filter | Best for | Postfix |
 |---|---|---|---|
-| **Photo** | Lanczos | Photos. Fine details stay sharp when downscaling. Sharp high-contrast edges may get a slight light halo | - |
-| **Graphics** | Catmull-Rom | Screenshots, diagrams, text, logos. Almost as sharp, with less halo around letters and lines, flat fills stay even | `_vec` |
-| **Pixels** | Point, nearest neighbor | Pixel art and small icons. Neighbor pixels are not blended, edges stay stepped. Cleanest when enlarging by a whole number: 200%, 300% | `_pix` |
+| **Photo** | Lanczos | The default, a universal filter for most cases. | - |
+| **Graphics** | Catmull-Rom | Screenshots, diagrams, text, logos. Almost as sharp, but with less halo around letters and lines, flat fills stay even. | `_vec` |
+| **Pixels** | Point | Good for pixel art and small icons. Neighbor pixels are not blended, edges stay stepped. Best when enlarging by a whole number: 200% or 300%. | `_pix` |
 
-The result is saved next to the original, with a postfix by size, mode and smoothing: `_per50`, `_res1920x1080`, `_res1280x`, `_res800x800_crop_vec`.
-
-
-## Settings
-Language, theme, auto close and context menu options are in the settings window: `Settings.exe` or the gear in the Moth window.
-
-Everything else is in `Moth.ini`: the menu for every format, titles, icons, overwrite rule (`FilePostfix`), your own actions.
-For example, you can add a 4096-color palette. After editing the file by hand, open the settings window and press OK to update the context menu.
-
-### Update check
-Once a week Moth sends a single request to [GitHub releases](https://github.com/MarkovTrue/Moth/releases) to learn the latest version number. Nothing is downloaded or sent anywhere.
-If a new version is out, the window title gets a mark, the gear starts blinking, and the settings show a download link. The check can be turned off or run by hand in the settings.
+The result is saved next to the original, with a postfix by size, mode and smoothing: `_per50`, `_res1920x1080`, `_res800x800_crop_vec`.
 
 
 ## Moth uses
@@ -138,19 +119,10 @@ Everything is already in the archive, in the `Apps` folder:
 
 After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 
-
 ## ⚠️ Antivirus
-Moth is written in AutoIt, and some antivirus software may flag the exe files as suspicious.
-This is a known false positive for programs compiled from AutoIt, not a virus.
-
-* The source code is open – you can review it and build the program yourself
-* The files are not packed with UPX and not obfuscated
-* If your antivirus complains – check the file on [VirusTotal](https://www.virustotal.com) and add the Moth folder to exclusions
-* It helps to report the false positive to the antivirus vendor, for example [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission)
-
+Moth is written in AutoIt, and some antivirus software may flag the exe files as suspicious.<br>
+This is a known false positive for programs compiled from AutoIt.
 
 ## 🤝 Support
-Bug reports and suggestions are welcome. If something was compressed wrong, set `Log=1` in `Moth.ini`
-and attach the log `%TEMP%\Moth\Moth.log` to your report.
-
-Support the project: [CloudTips](https://pay.cloudtips.ru/p/c4a97b44)
+Bug reports and suggestions are welcome.
+Support: [CloudTips](https://pay.cloudtips.ru/p/c4a97b44).

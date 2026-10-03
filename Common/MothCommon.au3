@@ -26,7 +26,7 @@ Global Const _
 
 ; $gc_sMothIni - содержимое Moth.ini, а не путь
 Global Const _
-		$gc_sAppVersion = '1.41', _ ; сравнивается с тегом релиза на GitHub
+		$gc_sAppVersion = '1.42', _ ; сравнивается с тегом релиза на GitHub
 		$gc_sAppName = 'Moth ' & $gc_sAppVersion, _
 		$gc_sMothIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini'), _
 		$gc_sTmpPath = @TempDir & '\Moth', _
@@ -50,7 +50,7 @@ Global Const $gc_aExtensionWhiteList = [ _
 ; HEIF - тот же HEIC под другим расширением, поэтому в HEIC он не конвертируется.
 ; Палитра только там, где её можно сохранить без потерь: у JPEG и AVIF шум дизеринга
 ; раздувает файл, а в GIF и так не больше 256 цветов.
-; Exif без потерь - у форматов, где он бывает: в GIF и BMP его нет.
+; Метаданные без потерь - у форматов, где они бывают: в GIF и BMP их нет.
 Global Const _
 		$SUPPORT_FORMATS_COMPRESSION_LOSSLESS = [$FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_COMPRESSION_LOSSLESS_EXIF = [$FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
@@ -98,43 +98,12 @@ Func _IsFormatSupported($sExtensionFile, $sActionName)
 EndFunc   ;==>_IsFormatSupported
 
 
-; Форматы по каноническому имени действия, у своих имён ([Moth.MyAction]) - по Command
+; Форматы по команде действия. Сжатие без потерь с метаданными (SaveExif=1) - только
+; у форматов, где они бывают
 Func _GetActionSupportedFormats($sActionName)
-	; Порядок важен: LosslessJpegExif должен проверяться раньше Lossless
-	If StringInStr($sActionName, "CompressionLosslessJpegExif") Then
-		Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS_EXIF
-	ElseIf StringInStr($sActionName, "CompressionLossless") Then
-		Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS
-	ElseIf StringInStr($sActionName, "CompressionLossy") Then
-		Return $SUPPORT_FORMATS_COMPRESSION_LOSSY
-	ElseIf StringInStr($sActionName, "CompressionWeb") Then
-		Return $SUPPORT_FORMATS_COMPRESSION_FOR_WEB
-	ElseIf StringInStr($sActionName, "ColorQuantization") Then
-		Return $SUPPORT_FORMATS_COLOR_QUANTIZATION
-	ElseIf StringInStr($sActionName, "Resize") Then
-		Return $SUPPORT_FORMATS_RESIZE
-	ElseIf StringInStr($sActionName, "ConvertToPng") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_PNG
-	ElseIf StringInStr($sActionName, "ConvertToWebp") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_WEBP
-	ElseIf StringInStr($sActionName, "ConvertToJpg") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_JPG
-	ElseIf StringInStr($sActionName, "ConvertToJfif") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_JFIF
-	ElseIf StringInStr($sActionName, "ConvertToJxl") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_JXL
-	ElseIf StringInStr($sActionName, "ConvertToAvif") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_AVIF
-	ElseIf StringInStr($sActionName, "ConvertToHeic") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_HEIC
-	ElseIf StringInStr($sActionName, "ConvertToGif") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_GIF
-	ElseIf StringInStr($sActionName, "ConvertToBmp") Then
-		Return $SUPPORT_FORMATS_CONVERT_TO_BMP
-	EndIf
-
-	; Имя не каноническое - определяем по команде действия из настроек
-	Return _GetCommandSupportedFormats(_IniString_Read($gc_sMothIni, $sActionName, 'Command'))
+	Local $sCommand = _ActionRead($sActionName, 'Command')
+	If $sCommand = 'loss' And _ActionRead($sActionName, 'SaveExif') = 1 Then Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS_EXIF
+	Return _GetCommandSupportedFormats($sCommand)
 EndFunc   ;==>_GetActionSupportedFormats
 
 
@@ -173,6 +142,15 @@ Func _GetCommandSupportedFormats($sCommand)
 
 	Return Null
 EndFunc   ;==>_GetCommandSupportedFormats
+
+
+; Группа форматов расширения: 'jpeg' - 'jpg.jpe.jpeg', '' - формат не поддерживается
+Func _FormatGroup($sExtension)
+	For $sGroup In $gc_aExtensionWhiteList
+		If StringInStr('.' & $sGroup & '.', '.' & $sExtension & '.') Then Return $sGroup
+	Next
+	Return ''
+EndFunc   ;==>_FormatGroup
 
 
 Func _GetExtensionListExpanded()
@@ -343,11 +321,80 @@ Func _Lang($sSection, $sKey, $sDefault = '')
 EndFunc   ;==>_Lang
 
 
+; Значение действия из Moth.ini. У встроенных действий секция не нужна: всё выводится
+; из имени, ключ в секции перекрывает выведенное. Пресет окна размеров (Moth.Resize.<команда>)
+; секцию не читает вовсе, так запущенный Moth понимает пресет, появившийся после его старта.
+; ShortGuiTitle по умолчанию - постфикс, без постфикса - команда
+Func _ActionRead($sActionName, $sKey, $sDefault = '')
+	Local $sCommand = _ResizeActionCommand($sActionName)
+	If $sCommand <> '' Then
+		Switch $sKey
+			Case 'Command'
+				Return $sCommand
+			Case 'FilePostfix', 'ShortGuiTitle'
+				Return _ResizePostfix($sCommand)
+			Case 'Icon'
+				Return _ResizeIcon($sCommand)
+			Case 'ContextMenuTitle'
+				Return _LangFile_Format('Resizer', 'MenuTitle', 'Size %1', _ResizeLabel($sCommand))
+		EndSwitch
+		Return $sDefault
+	EndIf
+
+	; Default - ключа в секции нет, пустое значение - тоже значение
+	Local $sValue = _IniString_Read($gc_sMothIni, $sActionName, $sKey, Default)
+	If Not IsKeyword($sValue) Then Return $sValue
+	$sValue = __ActionBuiltin($sActionName, $sKey)
+	If $sValue = '' And $sKey = 'ShortGuiTitle' Then
+		$sValue = _ActionRead($sActionName, 'FilePostfix')
+		If $sValue = '' Then $sValue = _ActionRead($sActionName, 'Command')
+	EndIf
+	Return $sValue <> '' ? $sValue : $sDefault
+EndFunc   ;==>_ActionRead
+
+
+; Встроенные действия: палитра Moth.ColorQuantization<N> и конвертация Moth.ConvertTo<формат>
+Func __ActionBuiltin($sActionName, $sKey)
+	Local $aMatch = StringRegExp($sActionName, '^Moth\.ColorQuantization(\d+)$', 1)
+	If Not @error Then
+		Switch $sKey
+			Case 'Command'
+				Return 'cq' & $aMatch[0]
+			Case 'FilePostfix'
+				Return '_cq' & $aMatch[0]
+			Case 'Icon'
+				Return 'Cq.ico'
+		EndSwitch
+		Return ''
+	EndIf
+
+	$aMatch = StringRegExp($sActionName, '^Moth\.ConvertTo(Jpg|Jfif|Png|Webp|Jxl|Avif|Heic|Gif|Bmp)$', 1)
+	If Not @error Then
+		Switch $sKey
+			Case 'Command'
+				Return 'to' & $aMatch[0]
+			Case 'ShortGuiTitle'
+				; U+2192 - стрелка вправо
+				Return ChrW(0x2192) & ' ' & StringUpper($aMatch[0])
+			Case 'Icon'
+				Return 'Format' & ($aMatch[0] = 'Jpg' ? 'Jpeg' : $aMatch[0]) & '.ico'
+		EndSwitch
+	EndIf
+	Return ''
+EndFunc   ;==>__ActionBuiltin
+
+
 ; Заголовок действия в контекстном меню: ContextMenuTitle из Moth.ini перекрывает
-; перевод из языкового файла, так пользовательские действия задают свои названия
-Func _ActionTitle($sActionName)
+; перевод из языкового файла, так пользовательские действия задают свои названия.
+; У группы форматов бывает свой перевод: ключ <действие>.<первое расширение>, например
+; Moth.CompressionLosslessMeta.JPG - у JPEG метаданные называются Exif
+Func _ActionTitle($sActionName, $sExtensions = '')
 	Local $sTitle = StringStripWS(_ActionRead($sActionName, 'ContextMenuTitle'), 3)
 	If $sTitle <> '' Then Return $sTitle
+	If $sExtensions <> '' Then
+		$sTitle = _LangFile_Get('Actions', $sActionName & '.' & StringUpper(StringRegExpReplace($sExtensions, '\..*', '')), '')
+		If $sTitle <> '' Then Return $sTitle
+	EndIf
 	Return _LangFile_Get('Actions', $sActionName, '')
 EndFunc   ;==>_ActionTitle
 

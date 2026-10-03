@@ -70,13 +70,20 @@ EndFunc   ;==>_MothMenu_SyncIconTheme
 ; Окна выбора (Popup= в Moth.ini)
 ; ============================================================
 ; Пункт с Popup открывает окно со списком действий (Menu.exe). Действия, отмеченные
-; в окне (Pinned=), стоят в меню перед этим пунктом, своим блоком, по алфавиту.
+; в окне, стоят в меню перед этим пунктом, своим блоком, по алфавиту. Отметки свои
+; у каждой группы форматов (Pinned.PNG=), общий Pinned= - для групп без своего ключа.
 ; Это ключи <Popup>.Pin<N>.<формат>, свои у каждого формата. В SubCommands формата
 ; стоят только существующие: на ссылке на ключ, которого нет, проводник обрывает
-; весь список. Поэтому отметка в окне переписывает эти ключи и их кусок в SubCommands,
+; весь список. Поэтому отметка в окне переписывает ключи Pin и их места в SubCommands,
 ; остальное меню не трогается.
+; Во вложенном меню проводник показывает не больше $gc_iMothMenuItemsMax пунктов, лишние
+; молча отбрасывает с конца. Пункты меню и окон остаются всегда, отмеченные встают
+; на свободные места сверху вниз: не влезли - их нет в меню, а окно не даёт отметить ещё.
 ; Окно размеров (Command=resizer) устроено так же: Popup - его пресеты Moth.Resize.<команда>,
 ; список пополняет само окно. Пустой список окно не прячет: в нём можно задать свой размер.
+
+Global Const $gc_iMothMenuItemsMax = 16
+
 
 ; Пункт открывает окно Menu.exe: список действий или окно размеров
 Func _MothMenu_IsPopup($sAction)
@@ -85,7 +92,7 @@ EndFunc   ;==>_MothMenu_IsPopup
 
 
 Func _MothMenu_IsResizer($sAction)
-	Return _IniString_Read($gc_sMothIni, $sAction, 'Command') = 'resizer'
+	Return _ActionRead($sAction, 'Command') = 'resizer'
 EndFunc   ;==>_MothMenu_IsResizer
 
 
@@ -113,62 +120,170 @@ Func _MothMenu_PopupPinKey($sPopup, $iN, $sExtensions)
 EndFunc   ;==>_MothMenu_PopupPinKey
 
 
-; Раскладывает отмеченные действия $sPinned ('A|B') по ключам во всех форматах:
-; по алфавиту, у окна размеров - в порядке его списка.
-; $sIni - как у _MothMenu_PopupActions: окно размеров только что дописало пресет
-Func _MothMenu_PopupPinsUpdate($sPopup, $sPinned, $sIni = Default)
+; Отмеченные действия окна в меню группы форматов, 'A|B'. Ключ группы - как имя
+; её секции Action: Pinned.PNG, Pinned.JPG.JPE.JPEG, Pinned.Folder. Нет ключа - общий Pinned:
+; так задан эталон и так было в прежних ini. Без общего нет ключа - нет и отметок
+Func _MothMenu_PinnedRead($sIni, $sPopup, $sExtensions)
+	Local $sPinned = _IniString_Read($sIni, $sPopup, __MothMenu_PinnedKey($sExtensions), '|')
+	If $sPinned == '|' Then $sPinned = _IniString_Read($sIni, $sPopup, 'Pinned')
+	Return $sPinned
+EndFunc   ;==>_MothMenu_PinnedRead
+
+
+; Пишет отмеченные действия окна для группы форматов. Общий Pinned сначала расходится
+; по ключам групп, у которых своего нет, и удаляется: правка в одном формате не трогает
+; остальные. Группа получает, что умеет, если окно стоит в её меню. Пустой список - без ключа
+Func _MothMenu_PinnedWrite(ByRef $sIni, $sPopup, $sExtensions, $sPinned)
+	Local $sCommon = _IniString_Read($sIni, $sPopup, 'Pinned', '|'), $sKey, $sOwn
+	If Not ($sCommon == '|') Then
+		For $sGroup In _MothMenu_PinGroups()
+			$sKey = __MothMenu_PinnedKey($sGroup)
+			If Not (_IniString_Read($sIni, $sPopup, $sKey, '|') == '|') Then ContinueLoop
+			If Not __MothMenu_InFormatMenu($sPopup, $sGroup) Then ContinueLoop
+			$sOwn = ''
+			For $sAction In _MothMenu_PopupActions($sPopup, $sGroup, $sIni)
+				If StringInStr('|' & $sCommon & '|', '|' & $sAction & '|') Then $sOwn &= '|' & $sAction
+			Next
+			If $sOwn <> '' Then _IniString_Write($sIni, $sPopup, $sKey, StringTrimLeft($sOwn, 1))
+		Next
+		_IniString_Delete($sIni, $sPopup, 'Pinned')
+	EndIf
+	If $sPinned = '' Then
+		_IniString_Delete($sIni, $sPopup, __MothMenu_PinnedKey($sExtensions))
+	Else
+		_IniString_Write($sIni, $sPopup, __MothMenu_PinnedKey($sExtensions), $sPinned)
+	EndIf
+EndFunc   ;==>_MothMenu_PinnedWrite
+
+
+; Группы форматов со своими отметками: все поддерживаемые и папка
+Func _MothMenu_PinGroups()
+	Local $aGroups = $gc_aExtensionWhiteList
+	_ArrayAdd($aGroups, 'folder')
+	Return $aGroups
+EndFunc   ;==>_MothMenu_PinGroups
+
+
+Func __MothMenu_PinnedKey($sExtensions)
+	Return 'Pinned.' & ($sExtensions = 'folder' ? 'Folder' : StringUpper($sExtensions))
+EndFunc   ;==>__MothMenu_PinnedKey
+
+
+; Раскладывает отмеченные действия всех окон по ключам Pin во всех форматах и ставит их
+; в SubCommands перед пунктами окон. Прочие ключи Pin удаляются.
+; $sIni - как у _MothMenu_PopupActions: окно только что поменяло Pinned или список
+Func _MothMenu_PinsUpdate($sIni = Default)
+	If IsKeyword($sIni) Then $sIni = $gc_sMothIni
 	Local $aGroups = $gc_aExtensionWhiteList
 	If _IniString_Read($gc_sMothIni, 'Config', 'ContextMenuFolders') = 1 Then _ArrayAdd($aGroups, 'folder')
-	Local $aPinned = _MothMenu_SortByTitle(StringSplit($sPinned, '|', 2))
-	If _MothMenu_IsResizer($sPopup) Then
-		ReDim $aPinned[0]
-		; Список целиком: у папки форматы не проверяются
-		For $sAction In _MothMenu_PopupActions($sPopup, 'folder', $sIni)
-			If StringInStr('|' & $sPinned & '|', '|' & $sAction & '|') Then _ArrayAdd($aPinned, $sAction)
-		Next
-	EndIf
-
-
-	Local $aActions, $iN
+	Local $aLayout, $sSub, $sOld, $oKeep[]
 	For $sExtensions In $aGroups
-		$aActions = _MothMenu_PopupActions($sPopup, $sExtensions, $sIni)
-		$iN = 0
-		If __MothMenu_PopupInMenu($sPopup, $sExtensions) Then
-			For $sAction In $aPinned
+		$aLayout = __MothMenu_PinsLayout($sExtensions, $sIni)
+		If @error Then ContinueLoop
+		$sSub = ''
+		For $i = 0 To UBound($aLayout) - 1
+			$sSub &= $aLayout[$i][0] & ';'
+			If $aLayout[$i][1] = '' Then ContinueLoop
+			_MothRegDelete($gc_sRegKey & $aLayout[$i][0])
+			_MothMenu_WriteActionKey($aLayout[$i][0], $aLayout[$i][1], _ActionTitle($aLayout[$i][1]))
+			$oKeep[$aLayout[$i][0]] = True
+		Next
+		For $sRoot In _MothMenu_Roots($sExtensions)
+			$sOld = RegRead($sRoot, 'SubCommands')
+			If @error Or $sOld = '' Then ContinueLoop
+			If $sOld <> $sSub Then _MothRegWrite($sRoot, 'SubCommands', 'REG_SZ', $sSub)
+		Next
+	Next
+	__MothMenu_PinsCleanup($oKeep)
+EndFunc   ;==>_MothMenu_PinsUpdate
+
+
+; Есть ли в меню формата место ещё под одно отмеченное действие
+Func _MothMenu_PinFits($sExtensions, $sIni = Default)
+	If IsKeyword($sIni) Then $sIni = $gc_sMothIni
+	Return UBound(__MothMenu_PinsLayout($sExtensions, $sIni)) < $gc_iMothMenuItemsMax
+EndFunc   ;==>_MothMenu_PinFits
+
+
+; Меню формата по SubCommands его корня: пункты без ключей Pin, перед каждым окном
+; его отмеченные действия, пока меню не дойдёт до $gc_iMothMenuItemsMax пунктов.
+; Возвращает [ключ, действие]: у ключа Pin действие, у прочих пунктов ''.
+; @error - у формата нет меню Moth
+Func __MothMenu_PinsLayout($sExtensions, $sIni)
+	Local $aRoots = _MothMenu_Roots($sExtensions), $aItems[0]
+	Local $sSub = RegRead($aRoots[0], 'SubCommands')
+	If @error Or $sSub = '' Then
+		Local $aNone[0][2]
+		Return SetError(1, 0, $aNone)
+	EndIf
+	For $sItem In StringSplit($sSub, ';', 2)
+		If $sItem = '' Or StringRegExp($sItem, '\.Pin\d+\.') Then ContinueLoop
+		_ArrayAdd($aItems, $sItem)
+	Next
+
+	Local $iRoom = $gc_iMothMenuItemsMax - UBound($aItems)
+	Local $aLayout[UBound($aItems) + ($iRoom > 0 ? $iRoom : 0)][2], $iCount = 0, $sPopup, $aActions, $iN
+	For $sItem In $aItems
+		$sPopup = __MothMenu_ItemPopup($sItem)
+		If $sPopup <> '' Then
+			$aActions = _MothMenu_PopupActions($sPopup, $sExtensions, $sIni)
+			$iN = 0
+			For $sAction In __MothMenu_PopupPinned($sPopup, $sExtensions, $sIni)
+				If $iRoom <= 0 Then ExitLoop
 				If Not __MothMenu_PinWanted($sAction, $aActions, $sExtensions) Then ContinueLoop
 				$iN += 1
-				_MothRegDelete($gc_sRegKey & _MothMenu_PopupPinKey($sPopup, $iN, $sExtensions))
-				_MothMenu_WriteActionKey(_MothMenu_PopupPinKey($sPopup, $iN, $sExtensions), $sAction, _ActionTitle($sAction))
+				$iRoom -= 1
+				$aLayout[$iCount][0] = _MothMenu_PopupPinKey($sPopup, $iN, $sExtensions)
+				$aLayout[$iCount][1] = $sAction
+				$iCount += 1
 			Next
 		EndIf
-		For $i = $iN + 1 To UBound($aActions)
-			_MothRegDelete($gc_sRegKey & _MothMenu_PopupPinKey($sPopup, $i, $sExtensions))
-		Next
-		__MothMenu_PopupSubCommandsUpdate($sPopup, $sExtensions, $iN)
+		$aLayout[$iCount][0] = $sItem
+		$aLayout[$iCount][1] = ''
+		$iCount += 1
 	Next
-EndFunc   ;==>_MothMenu_PopupPinsUpdate
+	ReDim $aLayout[$iCount][2]
+	Return $aLayout
+EndFunc   ;==>__MothMenu_PinsLayout
 
 
-; Ставит в SubCommands формата $iN ключей отмеченных действий перед пунктом окна,
-; прежние ключи окна убирает
-Func __MothMenu_PopupSubCommandsUpdate($sPopup, $sExtensions, $iN)
-	Local $sPrefix = $sPopup & '.Pin', $sSub, $sNew
-	For $sRoot In _MothMenu_Roots($sExtensions)
-		$sSub = RegRead($sRoot, 'SubCommands')
-		If @error Or $sSub = '' Then ContinueLoop
-		$sNew = ''
-		For $sItem In StringSplit($sSub, ';', 2)
-			If $sItem = '' Or StringLeft($sItem, StringLen($sPrefix)) = $sPrefix Then ContinueLoop
-			If $sItem = $sPopup Or $sItem = $sPopup & 'Sep' Then
-				For $i = 1 To $iN
-					$sNew &= _MothMenu_PopupPinKey($sPopup, $i, $sExtensions) & ';'
-				Next
-			EndIf
-			$sNew &= $sItem & ';'
-		Next
-		If $sNew <> $sSub Then _MothRegWrite($sRoot, 'SubCommands', 'REG_SZ', $sNew)
+; Окно пункта SubCommands: у 'Moth.Convert' и 'Moth.ConvertSep' - 'Moth.Convert', '' - не окно
+Func __MothMenu_ItemPopup($sItem)
+	If _MothMenu_IsPopup($sItem) Then Return $sItem
+	If StringRight($sItem, 3) = 'Sep' And _MothMenu_IsPopup(StringTrimRight($sItem, 3)) Then Return StringTrimRight($sItem, 3)
+	Return ''
+EndFunc   ;==>__MothMenu_ItemPopup
+
+
+; Отмеченные действия окна в меню формата по порядку: по алфавиту, у окна размеров -
+; в порядке его списка
+Func __MothMenu_PopupPinned($sPopup, $sExtensions, $sIni)
+	Local $sPinned = _MothMenu_PinnedRead($sIni, $sPopup, $sExtensions)
+	If Not _MothMenu_IsResizer($sPopup) Then Return _MothMenu_SortByTitle(StringSplit($sPinned, '|', 2))
+	Local $aPinned[0]
+	; Список целиком: у папки форматы не проверяются
+	For $sAction In _MothMenu_PopupActions($sPopup, 'folder', $sIni)
+		If StringInStr('|' & $sPinned & '|', '|' & $sAction & '|') Then _ArrayAdd($aPinned, $sAction)
 	Next
-EndFunc   ;==>__MothMenu_PopupSubCommandsUpdate
+	Return $aPinned
+EndFunc   ;==>__MothMenu_PopupPinned
+
+
+; Удаляет ключи Pin всех окон, которых нет в $oKeep. Их номера не ограничены длиной
+; списка: после удаления пресетов хвост длиннее нынешнего Popup
+Func __MothMenu_PinsCleanup(ByRef $oKeep)
+	Local $i = 1, $sKey
+	While True
+		$sKey = RegEnumKey($gc_sRegKey, $i)
+		If @error Then ExitLoop
+		; После удаления тот же индекс указывает на следующий ключ
+		If StringLeft($sKey, 5) = 'Moth.' And StringRegExp($sKey, '\.Pin\d+\.') And Not MapExists($oKeep, $sKey) Then
+			_MothRegDelete($gc_sRegKey & $sKey)
+		Else
+			$i += 1
+		EndIf
+	WEnd
+EndFunc   ;==>__MothMenu_PinsCleanup
 
 
 ; Корневые ключи меню Moth группы форматов: у каждого расширения свой, у папки один
@@ -185,27 +300,23 @@ Func _MothMenu_Roots($sExtensions)
 EndFunc   ;==>_MothMenu_Roots
 
 
-; Окно включено в меню формата
-Func __MothMenu_PopupInMenu($sPopup, $sExtensions)
-	Local $aList = _MothMenu_FormatList($sExtensions)
-	For $i = 1 To $aList[0][0]
-		If $aList[$i][0] = $sPopup And $aList[$i][1] = 1 Then Return True
-	Next
-	Return False
-EndFunc   ;==>__MothMenu_PopupInMenu
-
-
 ; Отмеченное действие попадает в меню формата, если он его умеет и оно не стоит
 ; в меню отдельным пунктом (иначе вышло бы два одинаковых)
 Func __MothMenu_PinWanted($sAction, ByRef $aActions, $sExtensions)
 	If $sAction = '' Or _ActionTitle($sAction) = '' Then Return False
 	If _ArraySearch($aActions, $sAction) = -1 Then Return False
+	Return Not __MothMenu_InFormatMenu($sAction, $sExtensions)
+EndFunc   ;==>__MothMenu_PinWanted
+
+
+; Действие включено в списке [Action.*] группы форматов
+Func __MothMenu_InFormatMenu($sAction, $sExtensions)
 	Local $aList = _MothMenu_FormatList($sExtensions)
 	For $i = 1 To $aList[0][0]
-		If $aList[$i][0] = $sAction And $aList[$i][1] = 1 Then Return False
+		If $aList[$i][0] = $sAction And $aList[$i][1] = 1 Then Return True
 	Next
-	Return True
-EndFunc   ;==>__MothMenu_PinWanted
+	Return False
+EndFunc   ;==>__MothMenu_InFormatMenu
 
 
 ; Секция [Action.*] группы форматов. Группа могла вырасти: в Moth.ini до 1.40 была [Action.HEIC],

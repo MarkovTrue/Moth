@@ -14,15 +14,14 @@
 # буквы на тёмной полосе теряются. Цвета полос - как у FastStone Image Viewer (FSIcons.db),
 # форматам, которых там нет, взяты цвета из той же палитры.
 #
-# Новый формат: строка в FORMATS. Подпись в кадре 16 до 16 px шириной: буквы 3 px, M, N и W 5 px,
+# Новый формат: строка в FORMATS. Подпись в кадре 16 до 16 px шириной: буквы 3 px, G 4 px, M, N и W 5 px,
 # I 1 px, между буквами 1 px. Шире - ошибка, подпись нужна короче.
 #
 # Режимы окна размеров: resize - вписать, fill - заполнить, trim - заполнить и обрезать.
 # Серая рамка пунктиром - заданный размер, внутри та же картинка, что у иконок сжатия, на светлом
 # небе. Рамка одной высоты, ширина у режимов разная. У каждого режима варианты алгоритма:
 # _graphics и _pixels с подписью VEC и PIX по низу, фото - без подписи.
-# convert - рисунок document_arrow_right из Fluent UI System Icons (MIT, Assets/Fluent), нарисован
-# под 16, 20 и 24 px; остальные кадры масштабируются из них (FLUENT_SRC).
+# convert - лист формата синего цвета, подпись - многоточие.
 # Folder.ico (Settings.Editor) здесь не рисуется.
 # Иконки вспомогательных exe (EXE_ICONS) - серые, в Assets/Icons: в папке программы их не спутать
 # с цветным мотыльком Moth.exe и Settings.exe. Launcher - рисунок Fluent, Menu - square-menu из Lucide,
@@ -48,7 +47,7 @@ THEMES = {
     'light': dict(stroke='5F6B76', sky='D6EAF8'),
     'dark': dict(stroke='B3BCC7', sky='35506A'),
 }
-TEAL, SUN, BLUE, GREEN, ORANGE = '26A69A', 'FFB300', '1E88E5', '2E9D4A', 'EF6C00'
+TEAL, SUN, BLUE, ORANGE = '26A69A', 'FFB300', '1E88E5', 'EF6C00'
 
 # Файл format_<ключ>.ico: подпись и цвет полосы. Первые девять - форматы Moth
 FORMATS = {
@@ -99,7 +98,7 @@ FONT = {
     'D': ['##+', '#.#', '#.#', '#.#', '#.#', '#.#', '##+'],
     'E': ['###', '#..', '#..', '##.', '#..', '#..', '###'],
     'F': ['###', '#..', '#..', '##.', '#..', '#..', '#..'],
-    'G': ['+##', '#..', '#..', '#.#', '#.#', '#.#', '+##'],
+    'G': ['+##+', '#...', '#...', '#.##', '#..#', '#..#', '+##+'],   # с хвостиком, как в Bahnschrift
     'H': ['#.#', '#.#', '#.#', '###', '#.#', '#.#', '#.#'],
     'I': ['#', '#', '#', '#', '#', '#', '#'],
     'J': ['..#', '..#', '..#', '..#', '..#', '#.#', '+#+'],
@@ -162,8 +161,6 @@ FONT_PHOTO_WIDE = {
 # Цвета квадратов палитры: жёлтый темнее обычного, светлый сливается с белым меню
 PALETTE = ('E53935', 'F9A825', '43A047', '1E88E5')
 
-# ---------- глифы значков ----------
-G_LINES = ['######', '......', '######', '......', '######']
 # Алгоритм ресайза - подпись по низу иконки режима: текст, цвет, узкие и широкие буквы.
 # У фото подписи нет. В тёмной теме цвет светлее на LABEL_DARK_TINT, иначе фиолетовый теряется
 RESIZE_FILTERS = {'graphics': ('VEC', '8E24AA', 'E', ''), 'pixels': ('PIX', ORANGE, '', 'IX')}
@@ -366,13 +363,6 @@ def palette(c):
         c.fill(c.rect(x, 12, x + 3, 15), hexc(col))
 
 
-def badge(c, color, glyph, gx, gy):
-    """Значок 10x10 в правом нижнем углу, вокруг прозрачная кайма в 1 px."""
-    c.erase(c.rrect(5, 5, 17, 17, 3))
-    c.fill(c.rrect(6, 6, 16, 16, 2), hexc(color))
-    c.fill(c.pixels(glyph, gx, gy), WHITE)
-
-
 def frame_arrows(c, t, inward):
     """Двойная стрелка по диагонали рамки (resize_down). Наконечники в квадратах 3x3 у углов;
     при уменьшении вершина наконечника в противоположном углу того же квадрата."""
@@ -449,12 +439,13 @@ def size_mode(c, t, mode):
 
 def page(c, t, band=None, body=None):
     """Лист с загнутым углом: контур в 1 px, как рамки фото, углы скруглены тем же радиусом 2.
-    Контур - разность внешней и внутренней фигуры, у каждой срезан угол по линии x - y.
+    Лист высотой 15, с отступом 1 сверху. Контур - разность внешней и внутренней фигуры,
+    у каждой срезан угол по линии x - y. Загиб 3 px, его нижний край прячется под полосой.
     band - цвет полосы под подпись формата, body - заливка листа."""
     r2 = 2 ** 0.5   # внутренний срез угла сдвинут на 1 по нормали
-    outer = c.rrect(2, 0, 14, 16, 2) * (1 - c.poly([(11, 0), (17, 0), (17, 6)]))
-    inner = c.rrect(3, 1, 13, 15, 1) * (1 - c.poly([(11 - r2, 0), (17, 0), (17, 6 + r2)]))
-    fold = (c.rect(10, 0, 11, 4) + c.rect(10, 3, 14, 4)) * outer
+    outer = c.rrect(2, 1, 14, 16, 2) * (1 - c.poly([(10, 0), (17, 0), (17, 7)]))
+    inner = c.rrect(3, 2, 13, 15, 1) * (1 - c.poly([(10 - r2, 0), (17, 0), (17, 7 + r2)]))
+    fold = (c.rect(10, 1, 11, 4) + c.rect(10, 4, 14, 5)) * outer
     if body:
         c.fill(inner, hexc(body))
     c.fill(np.clip(outer - inner + fold, 0, 1), hexc(t['stroke']))
@@ -525,13 +516,6 @@ def fluent(c, name):
     return np.clip(np.abs(total), 0, 1), disc
 
 
-def convert(c, t, color):
-    """Лист со значком-стрелкой, рисунок document_arrow_right из Fluent: лист серый, значок цветной."""
-    full, disc = fluent(c, 'document_arrow_right')
-    c.fill(full * (1 - disc), hexc(t['stroke']))
-    c.fill(full * disc, hexc(color))
-
-
 # square-menu из Lucide. Его линия 2 из 24 в 16 и 20 px ложится между пикселями и мылится,
 # поэтому рисунок разложен вручную по пикселям каждого источника, кадры берутся из них, как у
 # Fluent (FLUENT_SRC). Источник: рамка (от, до, радиус, толщина), строки (от, до, верх каждой), толщина строки
@@ -580,6 +564,14 @@ def format_icon(c, t, text, color):
         c.erase(c.text(text, 8, 12, 7, LABEL_VEC_MAX))
 
 
+def convert(c, t, color):
+    """Лист формата, подпись - многоточие: точки 2x2 через 2 px, низ на строку выше низа букв.
+    Точки пиксельные во всех кадрах."""
+    page(c, t, color)
+    rows = ['..'.join(['##'] * 3)] * 2
+    c.erase(c.pixels(rows, (16 - len(rows[0]) + 1) // 2, 9))
+
+
 # ---------- набор ----------
 def icons(theme):
     t = THEMES[theme]
@@ -587,7 +579,6 @@ def icons(theme):
     out = {
         'lossless': lambda c: photo(c, t),
         'lossless_exif': lambda c: (photo(c, t), photo_label(c, 'EXIF', hexc(t['stroke']), 'EX')),
-        'lossless_progressive': lambda c: (photo(c, t), badge(c, GREEN, G_LINES, 8, 9)),
         'lossy': lambda c: photo(c, t, outline=True),
         'web': lambda c: (photo(c, t), photo_label(c, 'WEB', hexc(BLUE), 'E')),
         'cq': lambda c: (photo(c, t), palette(c)),
@@ -595,7 +586,7 @@ def icons(theme):
         'resize_down': lambda c: frame_arrows(c, t, True),
         'fill': lambda c: size_mode(c, t, 'fill'),
         'trim': lambda c: size_mode(c, t, 'trim'),
-        'convert': lambda c: convert(c, t, tint(BLUE, LABEL_DARK_TINT) if theme == 'dark' else BLUE),
+        'convert': lambda c: convert(c, t, band(BLUE)),
     }
     for mode in ('resize', 'fill', 'trim'):
         for key, (text, color, narrow, wide) in RESIZE_FILTERS.items():

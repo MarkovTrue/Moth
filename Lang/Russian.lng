@@ -3,17 +3,18 @@
 
 [Main]
 ColFile=Файл
-ColSize=Размер
-ColNew=Новый
-ColPercent=Процент
-ColSaved=Сжатие
+ColBefore=Было
+ColAfter=Стало
+ColSaved=Экономия
 ColTask=Задача
 ShowInExplorer=Показать в проводнике
 CopyAsPath=Копировать как путь
-Progress=Прогресс
-Complete=Завершено
+Progress=В работе
+Complete=Готово
 Saved=Сжатие
-SizeTotal=Размер
+ErrorsOne=%1 ошибка
+ErrorsFew=%1 ошибки
+ErrorsMany=%1 ошибок
 Settings=Настройки
 
 [Status]
@@ -22,6 +23,8 @@ NotSupported=не поддерживается
 SaveError=ошибка сохранения
 Skipped=пропуск
 PaletteLarger=мало цветов
+Working=в работе
+Queued=в очереди
 
 [Units]
 B=Б
@@ -81,10 +84,10 @@ LastCheckNever=Проверок ещё не было
 
 [Actions]
 Moth.CompressionLossless=Сжатие без потерь
-Moth.CompressionLosslessJpegExif=Сжатие без потерь Exif
-Moth.CompressionLosslessJpegProgressive=Сжатие без потерь Progressive
+Moth.CompressionLosslessMeta=Без потерь, сохранить Meta
+Moth.CompressionLosslessMeta.JPG=Без потерь, сохранить Exif
+Moth.CompressionLosslessMeta.JFIF=Без потерь, сохранить Exif
 Moth.CompressionLossy=Сжатие с потерями
-Moth.CompressionLossyJpegExif=Сжатие с потерями Exif
 Moth.CompressionWeb=Сжатие для WEB
 Moth.ColorQuantization64=Палитра 64 цвета
 Moth.ColorQuantization128=Палитра 128 цветов
@@ -92,8 +95,6 @@ Moth.ColorQuantization256=Палитра 256 цветов
 Moth.ColorQuantization512=Палитра 512 цветов
 Moth.ColorQuantization1024=Палитра 1024 цвета
 Moth.ColorQuantization2048=Палитра 2048 цветов
-Moth.Resize50=Изменить размер 50%
-Moth.Resize200=Изменить размер 200%
 Moth.ConvertToJpg=Конвертировать в JPG
 Moth.ConvertToJfif=Конвертировать в JFIF
 Moth.ConvertToPng=Конвертировать в PNG
@@ -106,16 +107,10 @@ Moth.ConvertToBmp=Конвертировать в BMP
 Moth.Convert=Конвертировать…
 Moth.ColorQuantization=Изменить палитру…
 Moth.Resizer=Изменить размер…
-
-; Короткие подписи внутри подменю «Конвертировать» (Group=)
-[ActionsInGroup]
-Moth.ConvertToWebp=в WEBP
-Moth.ConvertToAvif=в AVIF
-Moth.ConvertToHeic=в HEIC
-Moth.ConvertToJxl=в JXL
-Moth.ConvertToGif=в GIF
-Moth.ConvertToBmp=в BMP
-Moth.ConvertToJfif=в JFIF
+; Имя из Moth.ini до 1.41
+Moth.CompressionLosslessJpegExif=Без потерь, сохранить Meta
+Moth.CompressionLosslessJpegExif.JPG=Без потерь, сохранить Exif
+Moth.CompressionLosslessJpegExif.JFIF=Без потерь, сохранить Exif
 
 ; Окно «Изменить размер…». Пресет: MenuTitle, %1 - его размер («50%», «1920x1080», «по ширине 1920»)
 [Resizer]

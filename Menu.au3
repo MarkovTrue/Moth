@@ -38,6 +38,9 @@ _MothRequireX64()
 Global Const $gc_iQueueTail = 1500
 
 Global $g_sPopup = '', $g_aActions[0], $g_sPinned = ''
+; Группа форматов файла: закреплённые свои у каждой, по её меню проводника окно решает,
+; можно ли закрепить ещё
+Global $g_sFormat = ''
 ; Пути выделения и действия, уже отданные в Moth: опоздавший путь получает их все
 Global $g_aPaths[0], $g_aPicked[0]
 ; Окно размеров: поля ширины, высоты и процентов, «не увеличивать» и его
@@ -75,7 +78,8 @@ Func _Main()
 	; Список по формату файла, на котором открыли меню. Окно размеров и пустым нужно:
 	; в нём задают свой размер
 	Local $bResizer = _MothMenu_IsResizer($g_sPopup)
-	$g_sPinned = '|' & _IniString_Read($gc_sMothIni, $g_sPopup, 'Pinned') & '|'
+	$g_sFormat = _IsDir($sPath) ? 'folder' : _FormatGroup(_GetFileExtension($sPath))
+	$g_sPinned = '|' & _MothMenu_PinnedRead($gc_sMothIni, $g_sPopup, $g_sFormat) & '|'
 	$g_aActions = _MothMenu_PopupActions($g_sPopup, _IsDir($sPath) ? 'folder' : _GetFileExtension($sPath))
 	If $bResizer Then
 		_ResizerSourceStart($sPath)
@@ -95,9 +99,14 @@ Func _Main()
 	EndIf
 
 	_FluentMenu_SetButton('_OnPinToggle')
+	_FluentMenu_SetPinnable(_MothMenu_PinFits($g_sFormat))
 	_FluentMenu_SetPick('_OnPick')
 	_ListAppend($g_aPaths, $sPath)
-	Local $iSel = _FluentMenu_Show($aItems, $gc_bRegDarkTheme)
+	; Палитра Fluent, но текст пунктов как у меню проводника: чисто белый и чёрный, а не
+	; приглушённый #E6E6E6 и #1B1B1B. Тема задана здесь, поэтому окну меню - Default
+	_FluentSetTheme($gc_bRegDarkTheme)
+	$g_iFluentText1 = $gc_bRegDarkTheme ? 0xFFFFFF : 0x000000
+	Local $iSel = _FluentMenu_Show($aItems, Default)
 	If $iSel >= 0 Then _MenuPick(_MenuRowAction($iSel))
 
 	; Файлы выделения от процессов, запущенных с опозданием, получают всё выбранное. После
@@ -245,26 +254,34 @@ EndFunc   ;==>_ActionItemText
 ; Действия в контекстном меню
 ; ============================================================
 
-; Кнопка в открытом окне: действие сразу добавляется в меню или убирается из него.
-; Ini перечитывается с диска: его могли поправить, пока окно открыто. Отметки
-; действий, которых нет в этом окне (другой формат), сохраняются
+; Кнопка в открытом окне: действие сразу добавляется в меню формата файла или убирается
+; из него, у других форматов меню своё. Ini перечитывается с диска: его могли поправить,
+; пока окно открыто
 Func _OnPinToggle($iIndex, $bOn)
 	If $g_iResizeLive >= 0 Then Return _ResizerPinToggle($iIndex, $bOn)
 	Local $sIniPath = @ScriptDir & '\Moth.ini'
 	Local $sIni = _ReadFileUTF8($sIniPath)
 	Local $sAction = $g_aActions[$iIndex], $sPinned = ''
-	For $sItem In StringSplit(_IniString_Read($sIni, $g_sPopup, 'Pinned'), '|', 2)
+	For $sItem In StringSplit(_MothMenu_PinnedRead($sIni, $g_sPopup, $g_sFormat), '|', 2)
 		If $sItem <> '' And $sItem <> $sAction Then $sPinned &= '|' & $sItem
 	Next
 	If $bOn Then $sPinned &= '|' & $sAction
 	$sPinned = StringTrimLeft($sPinned, 1)
 
-	_IniString_Write($sIni, $g_sPopup, 'Pinned', $sPinned)
+	_MothMenu_PinnedWrite($sIni, $g_sPopup, $g_sFormat, $sPinned)
 	If Not _WriteFileUTF8($sIniPath, $sIni) Then _
 			MsgBox(16, $gc_sAppName, _LangFile_Format('Errors', 'SaveFailed', 'Failed to save the settings file:' & @CRLF & '%1', $sIniPath))
-	_MothMenu_PopupPinsUpdate($g_sPopup, $sPinned)
-	_MothRegReportErrors()
+	_MenuPinsUpdate($sIni)
 EndFunc   ;==>_OnPinToggle
+
+
+; Меню проводника по свежему ini. Меню формата файла заполнено - закрепить новое
+; нельзя, в меню оно бы не попало. Открепить можно всегда
+Func _MenuPinsUpdate($sIni)
+	_MothMenu_PinsUpdate($sIni)
+	_MothRegReportErrors()
+	_FluentMenu_SetPinnable(_MothMenu_PinFits($g_sFormat, $sIni))
+EndFunc   ;==>_MenuPinsUpdate
 
 
 ; ============================================================
@@ -320,7 +337,7 @@ EndFunc   ;==>_ListAppend
 Func _ResizerLoad()
 	Local $sIni = $gc_sMothIni
 	If _IniString_Read($sIni, $g_sPopup, 'Last', '|') == '|' Then $sIni = _ResizerMigrate()
-	$g_sPinned = '|' & _IniString_Read($sIni, $g_sPopup, 'Pinned') & '|'
+	$g_sPinned = '|' & _MothMenu_PinnedRead($sIni, $g_sPopup, $g_sFormat) & '|'
 	$g_aActions = _ResizerListRead($sIni)
 	$g_sResizeAction = _IniString_Read($sIni, $g_sPopup, 'Last')
 	If _ResizeActionCommand($g_sResizeAction) = '' Then $g_sResizeAction = ''
@@ -764,15 +781,15 @@ Func _ResizerPinToggle($iIndex, $bOn)
 EndFunc   ;==>_ResizerPinToggle
 
 
-; Закрепляет размер в меню проводника или открепляет. Ini перечитывается с диска:
-; пока окно было открыто, булавки могли поменяться
+; Закрепляет размер в меню проводника формата файла или открепляет. Ini перечитывается
+; с диска: пока окно было открыто, булавки могли поменяться
 Func _ResizerPin($sAction, $bOn)
 	Local $sIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini')
-	Local $sPinned = _ResizerListRemove(_IniString_Read($sIni, $g_sPopup, 'Pinned'), '|' & $sAction & '|')
+	Local $sPinned = _ResizerListRemove(_MothMenu_PinnedRead($sIni, $g_sPopup, $g_sFormat), '|' & $sAction & '|')
 	If $bOn Then $sPinned &= ($sPinned = '' ? '' : '|') & $sAction
 	$g_sPinned = '|' & $sPinned & '|'
-	_IniString_Write($sIni, $g_sPopup, 'Pinned', $sPinned)
-	_ResizerSave($sIni, $sPinned)
+	_MothMenu_PinnedWrite($sIni, $g_sPopup, $g_sFormat, $sPinned)
+	_ResizerSave($sIni, True)
 EndFunc   ;==>_ResizerPin
 
 
@@ -784,14 +801,13 @@ Func _ResizerApplied($sAction)
 EndFunc   ;==>_ResizerApplied
 
 
-; Стрелка передвинула пресет, окно уже показывает новый порядок. Поменялись местами
-; два закреплённых - меню проводника перекладывается
+; Стрелка передвинула пресет, окно уже показывает новый порядок. Меню проводника
+; перекладывается: в каком-то формате оба могут быть закреплены
 Func _ResizerMove($iFrom, $iTo)
 	Local $sAction = $g_aActions[$iFrom]
 	$g_aActions[$iFrom] = $g_aActions[$iTo]
 	$g_aActions[$iTo] = $sAction
-	_ResizerListSave(StringInStr($g_sPinned, '|' & $g_aActions[$iFrom] & '|') And _
-			StringInStr($g_sPinned, '|' & $sAction & '|'))
+	_ResizerListSave(True)
 EndFunc   ;==>_ResizerMove
 
 
@@ -814,12 +830,12 @@ EndFunc   ;==>_ResizerAdd
 Func _ResizerListSave($bPins = False)
 	Local $sIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini')
 	_IniString_Write($sIni, $g_sPopup, 'Popup', _ResizerJoin($g_aActions))
-	_ResizerSave($sIni, $bPins ? _IniString_Read($sIni, $g_sPopup, 'Pinned') : Default)
+	_ResizerSave($sIni, $bPins)
 EndFunc   ;==>_ResizerListSave
 
 
-; Крестик убрал пресет из окна: он уходит из Popup и Pinned. Ini перечитывается с диска.
-; Живая строка могла повторять его - теперь его можно добавить снова
+; Крестик убрал пресет из окна: он уходит из Popup и закреплённых всех форматов. Ini
+; перечитывается с диска. Живая строка могла повторять его - теперь его можно добавить снова
 Func _ResizerRemove($iRow)
 	Local $sAction = $g_aActions[$iRow]
 	For $i = $iRow To UBound($g_aActions) - 2
@@ -828,13 +844,17 @@ Func _ResizerRemove($iRow)
 	ReDim $g_aActions[UBound($g_aActions) - 1]
 	$g_iResizeLive -= 1
 
-	Local $sIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini')
-	Local $sPinnedOld = _IniString_Read($sIni, $g_sPopup, 'Pinned')
-	Local $sPinned = _ResizerListRemove($sPinnedOld, '|' & $sAction & '|')
-	$g_sPinned = '|' & $sPinned & '|'
+	Local $sIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini'), $sOld, $sPinned, $bPins = False
+	For $sGroup In _MothMenu_PinGroups()
+		$sOld = _MothMenu_PinnedRead($sIni, $g_sPopup, $sGroup)
+		$sPinned = _ResizerListRemove($sOld, '|' & $sAction & '|')
+		If $sPinned == $sOld Then ContinueLoop
+		_MothMenu_PinnedWrite($sIni, $g_sPopup, $sGroup, $sPinned)
+		$bPins = True
+	Next
+	$g_sPinned = '|' & _MothMenu_PinnedRead($sIni, $g_sPopup, $g_sFormat) & '|'
 	_IniString_Write($sIni, $g_sPopup, 'Popup', _ResizerJoin($g_aActions))
-	_IniString_Write($sIni, $g_sPopup, 'Pinned', $sPinned)
-	_ResizerSave($sIni, $sPinned <> $sPinnedOld ? $sPinned : Default)
+	_ResizerSave($sIni, $bPins)
 	_ResizerLiveUpdate()
 EndFunc   ;==>_ResizerRemove
 
@@ -853,15 +873,14 @@ EndFunc   ;==>_ResizerListRemove
 
 
 
-; Ini на диск. $sPinned - закреплённые изменились, меню проводника перекладывается
+; Ini на диск. $bPins - закреплённые изменились, меню проводника перекладывается
 ; по свежему ini: новых пресетов в загруженном при старте нет
-Func _ResizerSave($sIni, $sPinned = Default)
+Func _ResizerSave($sIni, $bPins = False)
 	Local $sIniPath = @ScriptDir & '\Moth.ini'
 	If Not _WriteFileUTF8($sIniPath, $sIni) Then
 		MsgBox(16, $gc_sAppName, _LangFile_Format('Errors', 'SaveFailed', 'Failed to save the settings file:' & @CRLF & '%1', $sIniPath))
 		Return
 	EndIf
-	If $sPinned = Default Then Return
-	_MothMenu_PopupPinsUpdate($g_sPopup, $sPinned, $sIni)
-	_MothRegReportErrors()
+	If Not $bPins Then Return
+	_MenuPinsUpdate($sIni)
 EndFunc   ;==>_ResizerSave

@@ -32,25 +32,6 @@ Func _ResizeActionCommand($sActionName)
 EndFunc   ;==>_ResizeActionCommand
 
 
-; Значение из Moth.ini. У пресета окна размеров секции нет: команда в имени,
-; постфикс, подпись и иконка выводятся из неё
-Func _ActionRead($sActionName, $sKey, $sDefault = '')
-	Local $sCommand = _ResizeActionCommand($sActionName)
-	If $sCommand = '' Then Return _IniString_Read($gc_sMothIni, $sActionName, $sKey, $sDefault)
-	Switch $sKey
-		Case 'Command'
-			Return $sCommand
-		Case 'FilePostfix', 'ShortGuiTitle'
-			Return _ResizePostfix($sCommand)
-		Case 'Icon'
-			Return _ResizeIcon($sCommand)
-		Case 'ContextMenuTitle'
-			Return _LangFile_Format('Resizer', 'MenuTitle', 'Size %1', _ResizeLabel($sCommand))
-	EndSwitch
-	Return $sDefault
-EndFunc   ;==>_ActionRead
-
-
 ; [проценты, ширина, высота, режим, фильтр, увеличивать]. Проценты 0 - размер в точках,
 ; сторона 0 - по пропорции. Картинку меньше размера в точках команда не увеличивает,
 ; если в конце нет _1. @error - команда не ресайза

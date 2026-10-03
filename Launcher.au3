@@ -17,8 +17,6 @@
 _MothRequireX64()
 
 Global $g_sAction = '', $g_sTask = ''
-; Окна выбора, попавшие в меню: их отмеченные действия раскладываются после всех форматов
-Global $g_sPopups = ''
 
 ; Проверка аргументов командной строки
 If $CmdLine[0] > 0 Then
@@ -74,10 +72,8 @@ Func _AddToContextMenu()
 		_SetupConfig('folder', _IniString_ReadSection($gc_sMothIni, 'Action.Folder'))
 	EndIf
 
-	For $sPopup In StringSplit($g_sPopups, '|', 2)
-		If $sPopup = '' Then ContinueLoop
-		_MothMenu_PopupPinsUpdate($sPopup, _IniString_Read($gc_sMothIni, $sPopup, 'Pinned'))
-	Next
+	; Отмеченные действия окон встают после всех форматов: в меню каждого, сколько влезет
+	_MothMenu_PinsUpdate()
 EndFunc   ;==>_AddToContextMenu
 
 
@@ -127,7 +123,7 @@ Func _SetupConfig($sExtensions, $aActionList)
 		EndIf
 
 		; Заголовок из языкового файла, ContextMenuTitle в ini его перекрывает
-		$sActionContextMenuTitle = _ActionTitle($sActionName)
+		$sActionContextMenuTitle = _ActionTitle($sActionName, $sExtensions)
 		If $sActionContextMenuTitle = '' Then
 			MsgBox(48, $sMsgTitle, _LangFile_Format('Integration', 'NoTitle', _
 					'Action "%1" skipped.' & @CRLF & 'It is missing from the settings file or has no title.', $sActionName))
@@ -137,20 +133,11 @@ Func _SetupConfig($sExtensions, $aActionList)
 		; Разделитель рисуется у пункта перед ним: флаг «разделитель после»
 		$bSeparator = _GetSeparator($i + 1, $aActionList) > 0
 
-		; Группа (Group=Moth.ConvertToWebp|...) раскрывается вложенным меню
-		Local $sGroup = _IniString_Read($gc_sMothIni, $sActionName, 'Group')
-		If $sGroup <> '' Then
-			Local $sGroupKey = _SetupGroup($sActionName, $sExtensions, $sGroup, $bSeparator)
-			If $sGroupKey <> '' Then $sSubCommands &= $sGroupKey & ';'
-			ContinueLoop
-		EndIf
-
 		; Окно выбора (Popup=Moth.ConvertToJpg|...): отмеченные в нём действия встанут
-		; перед пунктом, когда их разложит _MothMenu_PopupPinsUpdate. Окно размеров
+		; перед пунктом, когда их разложит _MothMenu_PinsUpdate. Окно размеров
 		; и без пресетов нужно: в нём задают свой размер
-		If _MothMenu_IsPopup($sActionName) Then
-			If UBound(_MothMenu_PopupActions($sActionName, $sExtensions)) = 0 And Not _MothMenu_IsResizer($sActionName) Then ContinueLoop
-			If Not StringInStr('|' & $g_sPopups, '|' & $sActionName & '|') Then $g_sPopups &= $sActionName & '|'
+		If _MothMenu_IsPopup($sActionName) And Not _MothMenu_IsResizer($sActionName) Then
+			If UBound(_MothMenu_PopupActions($sActionName, $sExtensions)) = 0 Then ContinueLoop
 		EndIf
 
 		If $bSeparator Then
@@ -177,33 +164,6 @@ Func _SetupConfig($sExtensions, $aActionList)
 		If $bExtended Then _MothRegWrite($sRoot, 'Extended', 'REG_SZ', '')
 	Next
 EndFunc   ;==>_SetupConfig
-
-
-; Вложенное меню: пункт с собственными SubCommands в CommandStore. Состав у каждого
-; формата свой: в группу попадают только действия, которые этот формат умеет
-; (у PNG нет «в PNG»). Ключ группы отдельный на формат, ключи пунктов - Moth.InGroup.*,
-; подписи внутри группы короче ([ActionsInGroup] в языковом файле).
-; Возвращает имя ключа группы или '', если в ней ничего не осталось
-Func _SetupGroup($sGroupAction, $sExtensions, $sGroup, $bSeparator)
-	Local $aExt = StringSplit($sExtensions, '.', 2), $sCommands = '', $sKey, $sSub
-	For $sItem In StringSplit($sGroup, '|', 2)
-		$sSub = StringStripWS($sItem, 3)
-		If StringLeft($sSub, 5) <> 'Moth.' Then ContinueLoop
-		; Папка раскрывается в файлы разных форматов: каждый файл проверит сам Moth
-		If $sExtensions <> 'folder' And Not _IsFormatSupported($aExt[0], $sSub) Then ContinueLoop
-		$sKey = 'Moth.InGroup.' & StringTrimLeft($sSub, 5)
-		_MothMenu_WriteActionKey($sKey, $sSub, _LangFile_Get('ActionsInGroup', $sSub, _ActionTitle($sSub)))
-		$sCommands &= $sKey & ';'
-	Next
-	If $sCommands = '' Then Return ''
-
-	$sKey = $sGroupAction & '.' & StringReplace($sExtensions, '.', '_') & ($bSeparator ? 'Sep' : '')
-	_MothRegWrite($gc_sRegKey & $sKey, 'MUIVerb', 'REG_SZ', _ActionTitle($sGroupAction))
-	_MothRegWrite($gc_sRegKey & $sKey, 'SubCommands', 'REG_SZ', $sCommands)
-	If $bSeparator Then _MothRegWrite($gc_sRegKey & $sKey, 'CommandFlags', 'REG_DWORD', '0x40')
-	_MothMenu_WriteActionIcon($sKey, $sGroupAction)
-	Return $sKey
-EndFunc   ;==>_SetupGroup
 
 
 ; Индекс разделителя сразу за пунктом, 0 - его нет. Выключенные пункты между ними пропускаются

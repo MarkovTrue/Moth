@@ -42,8 +42,8 @@ Global $__g_aFluentMenuRowY[0], $__g_sFluentMenuDividers = ''
 Global $__g_aFluentMenuSrc[0][3]
 ; Обработчики сортировки, крестика и кнопки «добавить», доступна ли она сейчас
 Global $__g_sFluentMenuOnMove = '', $__g_sFluentMenuOnRemove = '', $__g_sFluentMenuOnAdd = '', $__g_bFluentMenuAddable = False
-; Обработчик переключения кнопки пункта
-Global $__g_sFluentMenuOnToggle = ''
+; Обработчик переключения кнопки пункта; можно ли ещё закреплять
+Global $__g_sFluentMenuOnToggle = '', $__g_bFluentMenuPinnable = True
 ; Выбор без закрытия: обработчик, помеченные пункты, когда выбрали последний раз
 ; и надо ли вернуть окну активность
 Global $__g_sFluentMenuOnPick = '', $__g_aFluentMenuMarked[0], $__g_hFluentMenuPickTimer = 0, $__g_bFluentMenuRefocus = False
@@ -114,6 +114,14 @@ Func _FluentMenu_SetAdd($sOnAdd)
 	$__g_sFluentMenuOnAdd = $sOnAdd
 	$__g_bFluentMenuAddable = True
 EndFunc   ;==>_FluentMenu_SetAdd
+
+
+; Можно ли закрепить ещё пункт: нельзя – булавка незакреплённых недоступна, открепить можно всегда
+Func _FluentMenu_SetPinnable($bPinnable)
+	If $bPinnable = $__g_bFluentMenuPinnable Then Return
+	$__g_bFluentMenuPinnable = $bPinnable
+	If $__g_hFluentMenuGui Then __FluentMenu_Render()
+EndFunc   ;==>_FluentMenu_SetPinnable
 
 
 ; Выбор без закрытия окна на один _FluentMenu_Show: клик или Enter с Ctrl.
@@ -373,6 +381,7 @@ Func _FluentMenu_Show(ByRef $aItems, $bDark = Default, $iX = Default, $iY = Defa
 	$__g_sFluentMenuOnRemove = ''
 	$__g_sFluentMenuOnAdd = ''
 	$__g_bFluentMenuAddable = False
+	$__g_bFluentMenuPinnable = True
 	$__g_sFluentMenuOnPick = ''
 	_FluentMenu_SetPanel('')
 	Opt('GUIOnEventMode', $iOldMode)
@@ -683,9 +692,12 @@ Func __FluentMenu_RowHasBtn($iRow, $iBtn)
 EndFunc   ;==>__FluentMenu_RowHasBtn
 
 
-; Кнопка $iBtn строки работает: стрелке есть куда вести, пункта ещё нет в списке
+; Кнопка $iBtn строки работает: стрелке есть куда вести, пункта ещё нет в списке,
+; закреплять ещё можно
 Func __FluentMenu_BtnEnabled($iRow, $iBtn)
 	Switch $iBtn
+		Case 1
+			Return $__g_bFluentMenuPinnable Or $__g_aFluentMenuStates[$iRow] = True
 		Case 3
 			Return __FluentMenu_CanMove($iRow, -1)
 		Case 4
@@ -1028,6 +1040,7 @@ EndFunc   ;==>__FluentMenu_Pick
 ; Кнопка пункта переключает его состояние, окно остаётся открытым
 Func __FluentMenu_Toggle($iRow)
 	If $iRow < 0 Or Not IsBool($__g_aFluentMenuStates[$iRow]) Or Not $__g_aFluentMenuEnabled[$iRow] Then Return
+	If Not __FluentMenu_BtnEnabled($iRow, 1) Then Return
 	$__g_aFluentMenuStates[$iRow] = Not $__g_aFluentMenuStates[$iRow]
 	__FluentMenu_Render()
 	If $__g_sFluentMenuOnToggle <> '' Then Call($__g_sFluentMenuOnToggle, $iRow, $__g_aFluentMenuStates[$iRow])

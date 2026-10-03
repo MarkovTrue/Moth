@@ -43,6 +43,18 @@ Global Const $STATUS_SAVE_ERROR = 3
 Global Const $STATUS_SKIPPED_FOLDER = 4
 Global Const $STATUS_APP_ERROR = 5
 Global Const $STATUS_PALETTE_LARGER = 6
+; Только в строке результата: файл сконвертирован или изменён в размере, это не сжатие
+Global Const $STATUS_CONVERTED = 7
+
+; Колонки таблицы
+Global Const $COL_STATUS = 0, $COL_FILE = 1, $COL_BEFORE = 2, $COL_AFTER = 3, $COL_SAVED = 4, $COL_TASK = 5
+Global Const $gc_iColStatusW = 24, $gc_iColSizeW = 70, $gc_iColSavedW = 125
+; Колонка таблицы для поля строки результата (размер|новый|процент|разница|задача|статус), -1 - поле
+; рисует NM_CUSTOMDRAW: разница стоит в колонке экономии рядом с процентом
+Global Const $gc_aResultCol[6] = [-1, $COL_BEFORE, $COL_AFTER, $COL_SAVED, -1, $COL_TASK]
+; Вид строки для отрисовки, он же индекс значка в $g_hStatusImageList. Очередь и работа последние:
+; у них ещё нет результата (>= $ROW_QUEUE)
+Global Const $ROW_DONE = 0, $ROW_ERROR = 1, $ROW_SKIP = 2, $ROW_QUEUE = 3, $ROW_WORK = 4
 
 ; Таблица обновляется не чаще раза в столько мс и получает за раз не больше столько новых строк.
 ; Очередь растёт порциями по столько строк и считается собранной, если столько мс в неё ничего не приходило
@@ -52,9 +64,11 @@ Global Const $gc_iFileListChunk = 1000
 Global Const $gc_iQueueQuietMs = 800
 
 ; Наименьшее окно: таблица ровно на 3 строки
-Global Const $gc_iGuiMinW = 440
-Global Const $gc_iGuiMinH = 158
-Global Const $gc_iGuiW = 527, $gc_iGuiH = 168
+Global Const $gc_iGuiMinW = 520
+Global Const $gc_iGuiMinH = 164
+Global Const $gc_iGuiW = 555, $gc_iGuiH = 175
+; Перерисовка подвала после докинга: WM_SIZE приходит раньше, чем AutoIt подгонит контролы
+Global Const $gc_iWmInfoSync = 0x8001 ; WM_APP + 1
 
 ; Очередь файлов с 1: [0-источник, 1-путь, 2-действие, 3-команда, 4-результат]. [0][0] - число файлов
 Global $g_aFileList[$gc_iFileListChunk][5]
@@ -79,14 +93,24 @@ Global $g_sLog = '', $g_aDropList, $g_iAllWinnerSize = 0, $g_iAllFileSize = 0, _
 
 ; GUI handles / ControlIDs
 Global $g_hGui, $g_iListView, $g_hImageList, $g_iMenuShowInExplorer, $g_iMenuCopyPath, $g_iBtnOk, $g_iBtnSettings, _
-		$g_iDropDummy, $g_iContextMenu, $g_iListBack, $g_iProgress, $g_iLblInfo
+		$g_iDropDummy, $g_iContextMenu, $g_iProgress, $g_iPicInfo, $g_aListBack[3]
 Global $g_aColumnNames[6]
+; Подвал: HBITMAP картинки, состояние (0 - пусто, 1 - в работе, 2 - готово), файлов с ошибкой
+Global $g_hInfoBitmap = 0, $g_iInfoState = 0, $g_iErrorCount = 0, $g_bInfoSyncPosted = False
+; Когда подвал рисовался в последний раз (TimerInit) и ждёт ли отложенное обновление
+Global $g_hInfoUpdate = 0, $g_bInfoPending = False
+; Значки статуса строки и ширина полосы процентов в колонке экономии
+Global $g_hStatusImageList, $g_iPctZoneW = 50
+; Строка таблицы, которую сейчас рисует NM_CUSTOMDRAW: фон, вид и поля результата
+Global $g_iDrawRowBk, $g_iDrawRowKind, $g_aDrawRow, $g_sDrawAction, $g_sDrawCommand, $g_iDrawRowLeft
+; Высота шапки таблицы: строки таблицы всегда ниже неё
+Global $g_iHeaderH = 0
 ; Отсчёт до автозакрытия и идёт ли он
 Global $g_hCloseTimer, $g_bCloseTimer = True
 ; Таблица следует за обрабатываемым файлом, пока окно не тронули мышью
 Global $g_bAutoScroll = True
-; Строка последнего обработанного файла, её подсвечивает отрисовка таблицы (-1 - нет подсветки)
-Global $g_iDoneRow = -1
+; Строка, к которой таблица прокручена последней, её подсвечивает отрисовка (-1 - автопрокрутка выключена)
+Global $g_iScrollRow = -1
 ; Через сколько секунд после обработки окно закрывается само, 0 - не закрывается
 Global $g_iCloseSec = 10
 Global $g_bComplete = False
@@ -97,11 +121,15 @@ Global $g_iRowsShown = 0, $g_iLastUpdated = 0
 Global Const $gc_iLvHeaderBk   = 0x2D2D2D ; фон заголовка, светлее строк
 Global Const $gc_iLvHeaderText = 0xD4D4D4
 Global Const $gc_iLvRowBk      = 0x212121 ; чётные строки и пустая область
-Global Const $gc_iLvRowBkAlt   = 0x292929 ; нечётные строки
+Global Const $gc_iLvRowBkAlt   = 0x262626 ; нечётные строки, чуть светлее: чередование без пестроты
 Global Const $gc_iLvRowText    = 0xE0E0E0
 Global Const $gc_iLvRowSel     = 0x4D4D4D
-Global Const $gc_iLvRowCurLight = 0xFFE8CC ; светлая тема: строка обработанного файла (BGR, #CCE8FF)
 Global Const $gc_iLvGridLine   = 0x191919 ; сетка и рамка заголовка
+Global Const $gc_iLvRowBkAltLight = 0xF4F4F4 ; светлая тема: нечётные строки
+
+; Цвета строк и подвала по теме, RGB. Заполняет _SetPalette: размеры до сжатия и пропуски приглушены,
+; уменьшение файла зелёное, рост оранжевый, ошибки красные
+Global $g_iClrRowBk, $g_iClrRowBkAlt, $g_iClrRowSel, $g_iClrText, $g_iClrMuted, $g_iClrGood, $g_iClrBad, $g_iClrGrow
 
 ; NMCUSTOMDRAW заголовка. У строк таблицы - $tagNMLVCUSTOMDRAW из StructureConstants
 Global Const $tagNMCUSTOMDRAWHDR = "struct;" & $tagNMHDR & ";dword dwDrawStage;handle hdc;" & $tagRECT & _
@@ -123,6 +151,10 @@ Global $g_bShown = False
 ; Индекс иконки в $g_hImageList по расширению. Команда и подпись действия из ini:
 ; чтение на каждый файл заметно на тысячах заданий
 Global $g_oIconMap[], $g_oActionCommand[], $g_oActionTitle[]
+; Индекс иконки действия в $g_hTaskImageList по имени действия, -1 - иконки нет
+Global $g_oTaskIcon[], $g_hTaskImageList
+; Ширина названия задачи по имени действия: по самому широкому подгоняется колонка задачи
+Global $g_oTaskTextW[], $g_iTaskTextW = 0
 ; Потоки для jpegoptim
 Global $g_iProcCount = _Max(1, Int(EnvGet('NUMBER_OF_PROCESSORS')))
 
@@ -139,42 +171,56 @@ Func _MainGUI()
 
 	$g_hGui = GUICreate($gc_sAppName, $gc_iGuiW, $gc_iGuiH, 0, 0, $WS_CAPTION + $WS_THICKFRAME, $WS_EX_ACCEPTFILES)
 
-	$g_iListView = GUICtrlCreateListView("", 6, 2, $gc_iGuiW - 13, 122, _
+	$g_iListView = GUICtrlCreateListView("", 6, 2, $gc_iGuiW - 12, 129, _
 			BitOR($LVS_NOSORTHEADER, $LVS_SINGLESEL, $LVS_REPORT), _
-			BitOR($LVS_EX_INFOTIP, $LVS_EX_FULLROWSELECT))
+			BitOR($LVS_EX_INFOTIP, $LVS_EX_FULLROWSELECT, $LVS_EX_DOUBLEBUFFER))
 	GUICtrlSetResizing($g_iListView, $GUI_DOCKBORDERS)
 	GUICtrlSetState($g_iListView, $GUI_DROPACCEPTED)
 
-	; Подписи колонок нужны и заголовку тёмной темы, который рисуется вручную
-	Local $aNames = [_Lang('Main', 'ColFile', 'File'), _Lang('Main', 'ColSize', 'Size'), _
-			_Lang('Main', 'ColNew', 'New'), _Lang('Main', 'ColPercent', 'Percent'), _
-			_Lang('Main', 'ColSaved', 'Saved'), _Lang('Main', 'ColTask', 'Task')]
+	; Подписи колонок нужны и заголовку тёмной темы, который рисуется вручную.
+	; Статус и экономию рисует NM_CUSTOMDRAW, иконка файла - картинка подэлемента колонки файла
+	Local $aNames = ['', _Lang('Main', 'ColFile', 'File'), _Lang('Main', 'ColBefore', 'Before'), _
+			_Lang('Main', 'ColAfter', 'After'), _Lang('Main', 'ColSaved', 'Saved'), _Lang('Main', 'ColTask', 'Task')]
 	$g_aColumnNames = $aNames
-	_GUICtrlListView_InsertColumn($g_iListView, 0, $g_aColumnNames[0], 172)
-	_GUICtrlListView_InsertColumn($g_iListView, 1, $g_aColumnNames[1], 70, $LVCFMT_RIGHT)
-	_GUICtrlListView_InsertColumn($g_iListView, 2, $g_aColumnNames[2], 70)
-	_GUICtrlListView_InsertColumn($g_iListView, 3, $g_aColumnNames[3], 65, $LVCFMT_RIGHT)
-	_GUICtrlListView_InsertColumn($g_iListView, 4, $g_aColumnNames[4], 65)
-	_GUICtrlListView_InsertColumn($g_iListView, 5, $g_aColumnNames[5], 65)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_STATUS, '', $gc_iColStatusW)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_FILE, $g_aColumnNames[$COL_FILE], 172)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_BEFORE, $g_aColumnNames[$COL_BEFORE], $gc_iColSizeW, $LVCFMT_RIGHT)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_AFTER, $g_aColumnNames[$COL_AFTER], $gc_iColSizeW)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_SAVED, $g_aColumnNames[$COL_SAVED], $gc_iColSavedW, $LVCFMT_RIGHT)
+	_GUICtrlListView_InsertColumn($g_iListView, $COL_TASK, $g_aColumnNames[$COL_TASK], 60)
 
+	; Иконки файлов рисует _DrawFileCell из $g_hImageList. У ListView пустой список состояний
+	; шириной 1: строка на 1 px выше его картинки, 21 px, как в проводнике
 	$g_hImageList = _GUIImageList_Create(16, 16, 5, 3)
-	_GUICtrlListView_SetImageList($g_iListView, $g_hImageList, 1)
+	_GUICtrlListView_SetImageList($g_iListView, _GUIImageList_Create(1, 20, 5, 1), 2)
+	$g_iPctZoneW = _ListTextWidth('-88.88%')
+	$g_iHeaderH = _WinAPI_GetWindowHeight(_GUICtrlListView_GetHeader($g_iListView))
+	; Пока задач нет - по подписи в шапке, дальше _FitTaskColumn расширяет под названия
+	_GUICtrlListView_SetColumnWidth($g_iListView, $COL_TASK, _ListTextWidth($g_aColumnNames[$COL_TASK]) + 16)
 
 	; Контекстное меню строки: висит на пустышке и открывается из WM_NOTIFY по NM_RCLICK
 	$g_iContextMenu = GUICtrlCreateContextMenu(GUICtrlCreateDummy())
 	$g_iMenuShowInExplorer = GUICtrlCreateMenuItem(_Lang('Main', 'ShowInExplorer', 'Show in Explorer'), $g_iContextMenu)
 	$g_iMenuCopyPath = GUICtrlCreateMenuItem(_Lang('Main', 'CopyAsPath', 'Copy as path'), $g_iContextMenu)
 
-	; Подложка под таблицей в цвет строк
-	$g_iListBack = GUICtrlCreateLabel('', 0, 1, $gc_iGuiW, 124)
-	GUICtrlSetState($g_iListBack, $GUI_DISABLE)
-	GUICtrlSetResizing($g_iListBack, $GUI_DOCKBORDERS)
+	; Подложка вокруг таблицы в цвет строк: полоски слева, справа и сверху. Под таблицей её нет:
+	; одна подложка во всю ширину после докинга оказывалась над таблицей и закрашивала шапку
+	$g_aListBack[0] = GUICtrlCreateLabel('', 0, 1, 6, 131)
+	GUICtrlSetResizing($g_aListBack[0], $GUI_DOCKLEFT + $GUI_DOCKTOP + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH)
+	$g_aListBack[1] = GUICtrlCreateLabel('', $gc_iGuiW - 6, 1, 6, 131)
+	GUICtrlSetResizing($g_aListBack[1], $GUI_DOCKRIGHT + $GUI_DOCKTOP + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH)
+	$g_aListBack[2] = GUICtrlCreateLabel('', 0, 1, $gc_iGuiW, 1)
+	GUICtrlSetResizing($g_aListBack[2], $GUI_DOCKLEFT + $GUI_DOCKRIGHT + $GUI_DOCKTOP + $GUI_DOCKHEIGHT)
+	For $iBack In $g_aListBack
+		GUICtrlSetState($iBack, $GUI_DISABLE)
+	Next
 
-	$g_iProgress = GUICtrlCreateProgress(6, 125, $gc_iGuiW - 13, 5)
+	$g_iProgress = GUICtrlCreateProgress(6, 132, $gc_iGuiW - 12, 5)
 	GUICtrlSetResizing($g_iProgress, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
 
-	$g_iLblInfo = GUICtrlCreateLabel('', 10, 142, $gc_iGuiW - 119, 17, $SS_LEFT)
-	GUICtrlSetResizing($g_iLblInfo, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
+	; Подвал рисуется картинкой (_DrawInfo): у частей строки свои цвета и жирность. По высоте - как кнопки
+	$g_iPicInfo = GUICtrlCreatePic('', 9, 144, $gc_iGuiW - 116, 24)
+	GUICtrlSetResizing($g_iPicInfo, $GUI_DOCKLEFT + $GUI_DOCKBOTTOM + $GUI_DOCKRIGHT + $GUI_DOCKHEIGHT)
 
 	; Кнопки рисует Fluent (GDI+), как в окне настроек и VCLauncher. Скруглённые углы лежат
 	; на фоне окна: в светлой теме окно системное, поэтому фон кнопок - BTNFACE
@@ -186,21 +232,23 @@ Func _MainGUI()
 	Else
 		$g_iFluentBg = _WinAPI_SwitchColor(_WinAPI_GetSysColor($COLOR_BTNFACE))
 	EndIf
+	_SetPalette()
+	_DrawInfo()
 
 	$g_iCloseSec = Int(_IniString_Read($gc_sMothIni, 'Config', 'CloseTimer', '10'))
 	If $g_iCloseSec <= 0 Then
 		$g_iCloseSec = 0
 		$g_bCloseTimer = False
 	EndIf
-	; Подвал: кнопки 24 px с одинаковым отступом 7 сверху (от прогресс-бара), снизу, справа и между собой.
-	; Правый край OK совпадает с краем списка и прогресс-бара
-	$g_iBtnOk = _FluentButton_Create(_OkCountdownText(), '', 0, $gc_iGuiW - 71, 137, 64, 24, $FLUENTBUTTON_TEXT)
+	; Подвал: кнопки 24 px с отступом 7 сверху (от прогресс-бара), снизу и между собой.
+	; Правый край OK совпадает с краем списка и прогресс-бара: 6 от края окна, как слева
+	$g_iBtnOk = _FluentButton_Create(_OkCountdownText(), '', 0, $gc_iGuiW - 70, 144, 64, 24, $FLUENTBUTTON_TEXT)
 	GUICtrlSetResizing($g_iBtnOk, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
 	_SetOkEnabled(False)
 
 	; Шестерёнка слева от OK открывает окно настроек и мигает, если вышла новая версия.
 	; Кнопка квадратная по высоте OK. Иконка рисуется в родном размере PNG: Fluent её не сглаживает
-	$g_iBtnSettings = _FluentButton_Create('', 'Settings', 16, $gc_iGuiW - 102, 137, 24, 24, $FLUENTBUTTON_ICON)
+	$g_iBtnSettings = _FluentButton_Create('', 'Settings', 16, $gc_iGuiW - 101, 144, 24, 24, $FLUENTBUTTON_ICON)
 	GUICtrlSetResizing($g_iBtnSettings, $GUI_DOCKRIGHT + $GUI_DOCKBOTTOM + $GUI_DOCKWIDTH + $GUI_DOCKHEIGHT)
 	GUICtrlSetTip($g_iBtnSettings, _Lang('Main', 'Settings', 'Settings'))
 
@@ -224,6 +272,8 @@ Func _DefineEvents()
 	; Наименьший размер окна, заодно подгонка колонки файла при ресайзе
 	_FluentMsg_Register($WM_GETMINMAXINFO, "_OnEvent_WM_GETMINMAXINFO")
 	_FluentMsg_Register($WM_NOTIFY, "_OnEvent_WM_NOTIFY")
+	_FluentMsg_Register($WM_SIZE, "_OnEvent_WM_SIZE")
+	_FluentMsg_Register($gc_iWmInfoSync, "_OnEvent_WM_INFOSYNC")
 EndFunc   ;==>_DefineEvents
 
 
@@ -233,6 +283,13 @@ Func _SetTheme()
 		_FluentTheme_SetBorders(False, False)
 		_FluentTheme_Exclude($g_iListView)
 		_FluentTheme_Apply($g_hGui)
+		; Тема красит прогресс цветом акцента и обводит рамкой, в 5 px от полосы оставался 1.
+		; Полоса Moth сплошная зелёная без рамки, как системная в светлой теме
+		Local $hProgress = GUICtrlGetHandle($g_iProgress)
+		GUICtrlSetStyle($g_iProgress, $PBS_SMOOTH)
+		_WinAPI_SetWindowPos($hProgress, 0, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOZORDER, $SWP_FRAMECHANGED))
+		_SendMessage($hProgress, $PBM_SETBARCOLOR, 0, _WinAPI_SwitchColor(0x06B025))
+		_SendMessage($hProgress, $PBM_SETBKCOLOR, 0, _WinAPI_SwitchColor(0x383838))
 		_SetDarkListView()
 
 		_GUICtrlListView_SetBkColor($g_iListView, $gc_iLvRowBk)
@@ -247,12 +304,84 @@ Func _SetTheme()
 			If $g_pLVFilter Then _WinAPI_SetWindowSubclass(GUICtrlGetHandle($g_iListView), $g_pLVFilter, 1000, 0)
 			OnAutoItExitRegister("_LV_SubclassCleanup")
 		EndIf
-
-		GUICtrlSetBkColor($g_iListBack, $gc_iLvRowBk)
-	Else
-		GUICtrlSetBkColor($g_iListBack, 0xFFFFFF)
 	EndIf
+	For $iBack In $g_aListBack
+		GUICtrlSetBkColor($iBack, _IsDarkTheme() ? $gc_iLvRowBk : 0xFFFFFF)
+	Next
 EndFunc   ;==>_SetTheme
+
+
+; Цвета таблицы и подвала по теме и значки статуса в этих цветах
+Func _SetPalette()
+	If _IsDarkTheme() Then
+		$g_iClrRowBk = $gc_iLvRowBk
+		$g_iClrRowBkAlt = $gc_iLvRowBkAlt
+		$g_iClrRowSel = $gc_iLvRowSel
+		$g_iClrText = $gc_iLvRowText
+		$g_iClrMuted = 0x8F8F8F
+		$g_iClrGood = 0x6CCB5F
+		$g_iClrBad = 0xFF8A8A
+		$g_iClrGrow = 0xF59E0B
+	Else
+		$g_iClrRowBk = 0xFFFFFF
+		$g_iClrRowBkAlt = $gc_iLvRowBkAltLight
+		$g_iClrRowSel = 0xCCE8FF
+		$g_iClrText = 0x1A1A1A
+		$g_iClrMuted = 0x707070
+		$g_iClrGood = 0x0F7B0F
+		$g_iClrBad = 0xC42B1C
+		$g_iClrGrow = 0xD97706
+	EndIf
+
+	; Порядок значков - $ROW_*. PNG из Lucide перекрашивает Fluent, иконка 14 по центру клетки 16
+	Local $aIcons[5][2] = [['StatusDone', $g_iClrGood], ['StatusError', $g_iClrBad], ['StatusSkip', $g_iClrMuted], _
+			['StatusQueue', $g_iClrMuted], ['StatusWork', $g_iClrMuted]]
+	Local $hGfx, $hCanvas, $hIcon
+	; Иконки задач добавляет _GetTaskIconIndex, когда задача впервые попадает в таблицу
+	$g_hTaskImageList = _GUIImageList_Create(16, 16, 5, 4)
+	$g_hStatusImageList = _GUIImageList_Create(16, 16, 5, 1)
+	For $i = 0 To UBound($aIcons) - 1
+		$hCanvas = _FluentCanvas(16, 16, 0, $hGfx)
+		_FluentDrawIcon($hGfx, $aIcons[$i][0], 14, $aIcons[$i][1], 1, 1)
+		$hIcon = _GDIPlus_HICONCreateFromBitmap($hCanvas)
+		_GDIPlus_GraphicsDispose($hGfx)
+		_GDIPlus_BitmapDispose($hCanvas)
+		_GUIImageList_ReplaceIcon($g_hStatusImageList, -1, $hIcon)
+		_WinAPI_DestroyIcon($hIcon)
+	Next
+EndFunc   ;==>_SetPalette
+
+
+; Ширина текста шрифтом таблицы
+Func _ListTextWidth($sText)
+	Local $hLV = GUICtrlGetHandle($g_iListView)
+	Local $hFont = _SendMessage($hLV, $WM_GETFONT)
+	If Not $hFont Then $hFont = _WinAPI_GetStockObject($DEFAULT_GUI_FONT)
+	Local $hDC = _WinAPI_GetDC($hLV)
+	Local $hOld = _WinAPI_SelectObject($hDC, $hFont)
+	Local $tSize = _WinAPI_GetTextExtentPoint32($hDC, $sText)
+	_WinAPI_SelectObject($hDC, $hOld)
+	_WinAPI_ReleaseDC($hLV, $hDC)
+	Return DllStructGetData($tSize, "X")
+EndFunc   ;==>_ListTextWidth
+
+
+; Запоминает ширину названия задачи новой строки. True - название шире всех прежних,
+; колонку задачи пора расширить (_FitTaskColumn)
+Func _NoteTaskWidth($sActionName)
+	If MapExists($g_oTaskTextW, $sActionName) Then Return False
+	$g_oTaskTextW[$sActionName] = _ListTextWidth(_GetActionStr($sActionName))
+	If $g_oTaskTextW[$sActionName] <= $g_iTaskTextW Then Return False
+	$g_iTaskTextW = $g_oTaskTextW[$sActionName]
+	Return True
+EndFunc   ;==>_NoteTaskWidth
+
+
+; Колонка задачи по самому широкому названию: отступ, иконка, зазор, текст и запас. Не уже подписи
+Func _FitTaskColumn()
+	Local $iWidth = _Max(4 + 21 + $g_iTaskTextW + 8, _ListTextWidth($g_aColumnNames[$COL_TASK]) + 16)
+	_GUICtrlListView_SetColumnWidth($g_iListView, $COL_TASK, $iWidth)
+EndFunc   ;==>_FitTaskColumn
 
 
 ; Очередь обрабатывается в главном цикле, а не в Adlib: пока пользователь тащит
@@ -273,6 +402,7 @@ Func _OnEvent_Close()
 	DirRemove($gc_sImgPath, 1)
 
 	If $g_bPulse Then AdlibUnRegister('_PulseSettingsButton')
+	If $g_hInfoBitmap Then _WinAPI_DeleteObject($g_hInfoBitmap)
 	; Проверка обновлений живёт своим процессом и допишет Moth.ini сама
 	If $g_hUpdateProcess Then _WinAPI_CloseHandle($g_hUpdateProcess)
 	_FluentShutdown()
@@ -358,36 +488,15 @@ Func _OnEvent_WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
 
 	Switch $iCode
 		Case $NM_CUSTOMDRAW
-			Local $tLVCD = DllStructCreate($tagNMLVCUSTOMDRAW, $ilParam)
-			If _IsDarkTheme() Then
-				; Тело таблицы: чередование строк, выделение и подсветка обработанного файла
-				Switch DllStructGetData($tLVCD, "dwDrawStage")
-					Case $CDDS_PREPAINT
-						Return $CDRF_NOTIFYITEMDRAW
-					Case $CDDS_ITEMPREPAINT
-						Local $iRow = DllStructGetData($tLVCD, "dwItemSpec")
-						Local $iState = DllStructGetData($tLVCD, "uItemState")
-						If BitAND($iState, $CDIS_SELECTED) Or $iRow = $g_iDoneRow Then
-							; Без флагов выделения система рисует строку как обычную, с нашим фоном,
-							; а иконку и текст ставит на родные места
-							DllStructSetData($tLVCD, "uItemState", BitAND($iState, BitNOT($CDIS_SELECTED), BitNOT($CDIS_FOCUS)))
-							DllStructSetData($tLVCD, "clrTextBk", $gc_iLvRowSel)
-						Else
-							DllStructSetData($tLVCD, "clrTextBk", BitAND($iRow, 1) ? $gc_iLvRowBkAlt : $gc_iLvRowBk)
-						EndIf
-						DllStructSetData($tLVCD, "clrText", $gc_iLvRowText)
-						Return $CDRF_NEWFONT
-				EndSwitch
-			ElseIf $g_iDoneRow >= 0 Then
-				; Светлая тема: остальное рисует система, красим только строку обработанного файла
-				Switch DllStructGetData($tLVCD, "dwDrawStage")
-					Case $CDDS_PREPAINT
-						Return $CDRF_NOTIFYITEMDRAW
-					Case $CDDS_ITEMPREPAINT
-						If DllStructGetData($tLVCD, "dwItemSpec") <> $g_iDoneRow Then Return $CDRF_DODEFAULT
-						DllStructSetData($tLVCD, "clrTextBk", $gc_iLvRowCurLight)
-						Return $CDRF_NEWFONT
-				EndSwitch
+			Return _ListViewCustomDraw($ilParam)
+
+		Case $LVN_GETINFOTIPW
+			; Колонка файла не первая, и система не показывает подсказку к обрезанному имени: даём полный путь
+			Local $tTip = DllStructCreate($tagNMLVGETINFOTIP, $ilParam)
+			$iIndex = DllStructGetData($tTip, "Item")
+			If $iIndex >= 0 And $iIndex < $g_aFileList[0][0] And DllStructGetData($tTip, "TextMax") > 0 Then
+				Local $sTip = StringLeft($g_aFileList[$iIndex + 1][1], DllStructGetData($tTip, "TextMax") - 1)
+				DllStructSetData(DllStructCreate("wchar[" & StringLen($sTip) + 1 & "]", DllStructGetData($tTip, "Text")), 1, $sTip)
 			EndIf
 
 		Case $NM_RCLICK
@@ -402,6 +511,177 @@ Func _OnEvent_WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
 
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>_OnEvent_WM_NOTIFY
+
+
+; Тело таблицы в обеих темах: чередование строк, выделение, цвета колонок. Статус и экономию
+; система не рисует, их рисует _DrawCell
+Func _ListViewCustomDraw($ilParam)
+	Local $tLVCD = DllStructCreate($tagNMLVCUSTOMDRAW, $ilParam)
+	Local $iStage = DllStructGetData($tLVCD, "dwDrawStage")
+	If $iStage = $CDDS_PREPAINT Then Return $CDRF_NOTIFYITEMDRAW
+
+	; Без флагов выделения система рисует строку как обычную, с нашим фоном, а иконку
+	; и текст ставит на родные места. Подэлементы получают флаги заново, сброс в каждом
+	Local $iRow = DllStructGetData($tLVCD, "dwItemSpec")
+	Local $iState = DllStructGetData($tLVCD, "uItemState")
+	DllStructSetData($tLVCD, "uItemState", BitAND($iState, BitNOT($CDIS_SELECTED), BitNOT($CDIS_FOCUS)))
+
+	; Всплывающая подпись обрезанной строки рисуется тем же NM_CUSTOMDRAW, но в прямоугольнике
+	; от нуля: своя отрисовка клала иконку в шапку. Настоящие строки всегда ниже шапки
+	If $tLVCD.Top < $g_iHeaderH Then Return $CDRF_DODEFAULT
+
+	Switch $iStage
+		Case $CDDS_ITEMPREPAINT
+			; У подэлемента 0 система отдаёт прямоугольник без места под картинку состояния,
+			; левый край строки - только здесь
+			$g_iDrawRowLeft = $tLVCD.Left
+			If BitAND($iState, $CDIS_SELECTED) Or $iRow = $g_iScrollRow Then
+				$g_iDrawRowBk = _WinAPI_SwitchColor($g_iClrRowSel)
+			Else
+				$g_iDrawRowBk = _WinAPI_SwitchColor(BitAND($iRow, 1) ? $g_iClrRowBkAlt : $g_iClrRowBk)
+			EndIf
+			_RowKind($iRow)
+			Return $CDRF_NOTIFYSUBITEMDRAW
+
+		Case BitOR($CDDS_ITEMPREPAINT, $CDDS_SUBITEM)
+			Local $iCol = DllStructGetData($tLVCD, "iSubItem")
+			DllStructSetData($tLVCD, "clrTextBk", $g_iDrawRowBk)
+			; «Было» и «Стало» серые, если файл не обработан или не изменился (очередь, ошибка, пропуск)
+			DllStructSetData($tLVCD, "clrText", _WinAPI_SwitchColor((($iCol = $COL_BEFORE Or $iCol = $COL_AFTER) And _
+					$g_iDrawRowKind <> $ROW_DONE) ? $g_iClrMuted : $g_iClrText))
+			; «Стало» у файла без результата пустая: поверх неё текст статуса из колонки экономии
+			If $iCol = $COL_STATUS Or $iCol = $COL_FILE Or $iCol = $COL_SAVED Or $iCol = $COL_TASK Or _
+					($iCol = $COL_AFTER And $g_iDrawRowKind >= $ROW_QUEUE) Then
+				_DrawCell($tLVCD, $iCol)
+				Return $CDRF_SKIPDEFAULT
+			EndIf
+			Return $CDRF_NEWFONT
+	EndSwitch
+	Return $CDRF_DODEFAULT
+EndFunc   ;==>_ListViewCustomDraw
+
+
+; Вид строки и поля её результата для отрисовки. Результат виден строкам до $g_iLastUpdated
+; включительно: дальше таблица ещё не обновлялась, и файл пока в очереди или в работе
+Func _RowKind($iRow)
+	Local $iFile = $iRow + 1
+	$g_sDrawAction = $g_aFileList[$iFile][2]
+	$g_sDrawCommand = $g_aFileList[$iFile][3]
+	If $iFile <= $g_iLastUpdated Then
+		; Поля как у _ShowResult: размер|новый|процент|разница|задача|статус
+		$g_aDrawRow = StringSplit($g_aFileList[$iFile][4], '|')
+		If $g_aDrawRow[0] >= 6 Then
+			Switch Int($g_aDrawRow[6])
+				Case 0, $STATUS_CONVERTED
+					$g_iDrawRowKind = $ROW_DONE
+				Case $STATUS_APP_ERROR, $STATUS_SAVE_ERROR
+					$g_iDrawRowKind = $ROW_ERROR
+				Case Else
+					$g_iDrawRowKind = $ROW_SKIP
+			EndSwitch
+			Return
+		EndIf
+	EndIf
+	$g_iDrawRowKind = (Not $g_bComplete And $iFile = $g_iFileIndex) ? $ROW_WORK : $ROW_QUEUE
+EndFunc   ;==>_RowKind
+
+
+; Ячейка, которую система не рисует: статус, файл, экономия, задача и пустая «Стало» под текстом статуса
+Func _DrawCell($tLVCD, $iCol)
+	Local $hDC = DllStructGetData($tLVCD, "hdc")
+	Local $tRect = _WinAPI_CreateRect($tLVCD.Left, $tLVCD.Top, $tLVCD.Right, $tLVCD.Bottom)
+	; У первой колонки система отдаёт свой прямоугольник: край строки и ширина колонки - свои
+	If $iCol = $COL_STATUS Then
+		$tRect.Left = $g_iDrawRowLeft
+		$tRect.Right = $tRect.Left + _GUICtrlListView_GetColumnWidth($g_iListView, $COL_STATUS)
+	EndIf
+
+	; Фон строки хранится в COLORREF для clrTextBk, а кисть UDF принимает RGB
+	_WinAPI_SetDCBrushColor($hDC, _WinAPI_SwitchColor($g_iDrawRowBk))
+	_WinAPI_FillRect($hDC, $tRect, _WinAPI_GetStockObject($DC_BRUSH))
+
+	Switch $iCol
+		Case $COL_STATUS
+			; Значок у левого края: справа от него остаётся зазор до иконки файла
+			_GUIImageList_Draw($g_hStatusImageList, $g_iDrawRowKind, $hDC, $tRect.Left + 4, _
+					$tRect.Top + Int(($tRect.Bottom - $tRect.Top - 16) / 2), $ILD_TRANSPARENT)
+		Case $COL_SAVED
+			_DrawSavedCell($hDC, $tRect)
+		Case $COL_FILE
+			_DrawFileCell($hDC, $tRect, DllStructGetData($tLVCD, "dwItemSpec"))
+		Case $COL_TASK
+			_DrawTaskCell($hDC, $tRect)
+	EndSwitch
+EndFunc   ;==>_DrawCell
+
+
+; Задача: иконка действия и короткое название, как иконка и имя в колонке файла
+Func _DrawTaskCell($hDC, $tRect)
+	_DrawIconText($hDC, $tRect, $g_hTaskImageList, _GetTaskIconIndex($g_sDrawAction), _GetActionStr($g_sDrawAction))
+EndFunc   ;==>_DrawTaskCell
+
+
+Func _DrawFileCell($hDC, $tRect, $iRow)
+	Local $sPath = $g_aFileList[$iRow + 1][1]
+	_DrawIconText($hDC, $tRect, $g_hImageList, _GetIconIndexByPathFile($sPath), _GetFileName($sPath))
+EndFunc   ;==>_DrawFileCell
+
+
+; Иконка 16 и текст после неё с зазором 5 px. Без иконки текст на её месте
+Func _DrawIconText($hDC, $tRect, $hImageList, $iIcon, $sText)
+	Local $iX = $tRect.Left + 4
+	If $iIcon >= 0 Then
+		_GUIImageList_Draw($hImageList, $iIcon, $hDC, $iX, $tRect.Top + Int(($tRect.Bottom - $tRect.Top - 16) / 2), $ILD_TRANSPARENT)
+		$iX += 20
+	EndIf
+	Local $tText = _WinAPI_CreateRect($iX, $tRect.Top, $tRect.Right - 4, $tRect.Bottom)
+	_WinAPI_SetBkMode($hDC, $TRANSPARENT)
+	_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor($g_iClrText))
+	_WinAPI_DrawText($hDC, $sText, $tText, BitOR($DT_SINGLELINE, $DT_VCENTER, $DT_NOPREFIX, $DT_END_ELLIPSIS))
+EndFunc   ;==>_DrawIconText
+
+
+; Экономия. У обработанного файла разница серым и процент цветом: зелёным, если файл уменьшился, оранжевым - вырос.
+; Иначе текст статуса его цветом, прижат вправо. У файла без результата он занимает и пустую «Стало»
+Func _DrawSavedCell($hDC, $tRect)
+	; Справа запас больше обычного: экономия не липнет к иконке задачи
+	Local Const $iPad = 6, $iPadRight = 11
+	Local $iFlags = BitOR($DT_SINGLELINE, $DT_VCENTER, $DT_RIGHT, $DT_NOPREFIX, $DT_END_ELLIPSIS)
+	Local $tText = _WinAPI_CreateRect($tRect.Left + $iPad, $tRect.Top, $tRect.Right - $iPadRight, $tRect.Bottom)
+	_WinAPI_SetBkMode($hDC, $TRANSPARENT)
+
+	If $g_iDrawRowKind = $ROW_DONE Then
+		; Цвет по знаку: файл уменьшился - зелёный, вырос (конвертация, увеличение) - оранжевый
+		_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor(StringLeft($g_aDrawRow[3], 1) = '+' ? $g_iClrGrow : $g_iClrGood))
+		_WinAPI_DrawText($hDC, $g_aDrawRow[3], $tText, $iFlags)
+		; Процент в полосе постоянной ширины: проценты строк стоят ровно друг под другом.
+		; Длинный процент конвертации (+1550.9%) шире полосы: разница отступает от него, а не налезает
+		Local $tSize = _WinAPI_GetTextExtentPoint32($hDC, $g_aDrawRow[3])
+		$tText.Right -= _Max($g_iPctZoneW, DllStructGetData($tSize, "X")) + $iPad
+		_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor($g_iClrMuted))
+		_WinAPI_DrawText($hDC, $g_aDrawRow[4], $tText, $iFlags)
+		Return
+	EndIf
+
+	; Поля результата есть только у ошибки и пропуска
+	Local $sText, $iColor = $g_iClrMuted
+	Switch $g_iDrawRowKind
+		Case $ROW_ERROR
+			$sText = $g_aDrawRow[3]
+			$iColor = $g_iClrBad
+		Case $ROW_SKIP
+			$sText = $g_aDrawRow[3]
+		Case $ROW_WORK
+			$sText = _Lang('Status', 'Working', 'processing')
+		Case Else
+			$sText = _Lang('Status', 'Queued', 'queued')
+	EndSwitch
+	; Текст статуса длиннее цифр: ему обычный отступ справа, запас нужен только цифрам
+	$tText.Right = $tRect.Right - $iPad
+	If $g_iDrawRowKind >= $ROW_QUEUE Then $tText.Left -= _GUICtrlListView_GetColumnWidth($g_iListView, $COL_AFTER)
+	_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor($iColor))
+	_WinAPI_DrawText($hDC, $sText, $tText, $iFlags)
+EndFunc   ;==>_DrawSavedCell
 
 
 ; Сабкласс ListView: перехватывает NM_CUSTOMDRAW заголовка (SysHeader32) и рисует его в цветах палитры Fluent
@@ -434,7 +714,7 @@ Func _LV_HeaderSubclass($hWnd, $iMsg, $iwParam, $ilParam, $iID, $pData)
 					_WinAPI_DrawLine($hDC, $tRect.Left, $tRect.Bottom - 1, $tRect.Right, $tRect.Bottom - 1)
 
 					_WinAPI_SetTextColor($hDC, _WinAPI_SwitchColor($gc_iLvHeaderText))
-					If $iCol = 1 Or $iCol = 3 Then
+					If $iCol = $COL_BEFORE Or $iCol = $COL_SAVED Then
 						$tRect.Right -= 9
 						_WinAPI_DrawText($hDC, $g_aColumnNames[$iCol], $tRect, $DT_SINGLELINE + $DT_VCENTER + $DT_RIGHT)
 					Else
@@ -468,7 +748,6 @@ Func _SetDarkListView()
 	Local $hLV = GUICtrlGetHandle($g_iListView)
 	_FluentWinApi_AllowDarkModeForWindow($hLV, True)
 	_WinAPI_SetWindowTheme($hLV, 'DarkMode_Explorer')
-	_GUICtrlListView_SetExtendedListViewStyle($g_iListView, BitOR(_GUICtrlListView_GetExtendedListViewStyle($g_iListView), $LVS_EX_DOUBLEBUFFER))
 	_WinAPI_SetWindowLong($hLV, $GWL_EXSTYLE, BitAND(_WinAPI_GetWindowLong($hLV, $GWL_EXSTYLE), BitNOT($WS_EX_CLIENTEDGE)))
 	_WinAPI_SetWindowPos($hLV, 0, 0, 0, 0, 0, BitOR($SWP_NOMOVE, $SWP_NOSIZE, $SWP_NOZORDER, $SWP_FRAMECHANGED))
 	GUICtrlSetColor($g_iListView, $gc_iLvRowText)
@@ -510,7 +789,7 @@ EndFunc   ;==>_OnEvent_Settings
 Func _OnEvent_ClickDown()
 	$g_bCloseTimer = False
 	$g_bAutoScroll = False
-	_AutoScrollToCurrent() ; снимает подсветку: дальше выделяет пользователь
+	_AutoScrollToCurrent()
 	_SetOkButtonText("OK")
 EndFunc   ;==>_OnEvent_ClickDown
 
@@ -533,8 +812,8 @@ Func _CompressFile()
 				$sExtensionFile = _GetFileExtension($sPathFile)
 				$iFileSize = FileGetSize($sPathFile)
 				$g_iFileIndex = $i
-				; Без паузы обновления: результат предыдущего файла и подсветка нового появляются
-				; вместе, иначе строка перед подсвеченной какое-то время выглядела пропущенной
+				; Без паузы обновления: результат предыдущего файла и статус «в работе» нового появляются
+				; вместе, иначе строка перед ним какое-то время выглядела пропущенной
 				_UpdateGUI(True)
 				_SetLabel(False)
 				$g_iProgressMax = Round($g_iFileIndex / $g_aFileList[0][0] * 100)
@@ -547,22 +826,21 @@ Func _CompressFile()
 				_AddLogLine('    ' & $sPathFile)
 
 				$g_iOrientPending = 0
-				; cwebp не читает анимацию: сжатие давало случайный пропуск, а палитра - один первый кадр
+				; Что умеет формат, решает только таблица $SUPPORT_FORMATS_*. Анимированный WEBP
+				; сверх неё: cwebp не читает анимацию, сжатие давало случайный пропуск, а палитра -
+				; один первый кадр
 				Local $sDispatch = $sActionCommand
-				If $sExtensionFile = $FORMAT_WEBP And StringRegExp($sActionCommand, '^(loss|lossy|web|cq\d+)$') Then
+				If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
+					$sDispatch = 'unsupported'
+				ElseIf $sExtensionFile = $FORMAT_WEBP And StringRegExp($sActionCommand, '^(loss|lossy|web|cq\d+)$') Then
 					If _WebpIsAnimated($sPathFile) Then $sDispatch = 'unsupported'
 				EndIf
 				Switch $sDispatch
 					Case 'unsupported'
 						_UpdateGUI()
-						_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
+						_ShowResult($sPathFile, $iFileSize, 0, _UnsupportedStatus($sPathFile, $sExtensionFile, $sActionCommand))
 					Case 'loss' ; Сжатие без потерь
 						Switch $sExtensionFile
-							Case 'avif', 'heic', 'heif'
-								; ImageMagick не умеет AVIF без потерь: ключ heic:lossless он пропускает,
-								; и файл пережимался с потерями (PSNR ~39 дБ). HEIC - та же история
-								_UpdateGUI()
-								_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
 							Case 'bmp'
 								_CompressionBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 							Case 'gif'
@@ -629,7 +907,7 @@ Func _CompressFile()
 	Until $g_iRowsShown = $g_aFileList[0][0]
 
 	$g_bComplete = True
-	_AutoScrollToCurrent() ; подсветка переходит на последний файл
+	_AutoScrollToCurrent() ; прокрутка к последнему файлу
 
 	_SetProcess(100)
 
@@ -637,6 +915,17 @@ Func _CompressFile()
 
 	_SetLabel(True)
 EndFunc   ;==>_CompressFile
+
+
+; Статус файла, который действие не берёт. Пропуск - папка, конвертация в тот же формат
+; (JPEG в JPG, HEIF в HEIC) и неизвестная команда, остальное - формат не поддерживается
+Func _UnsupportedStatus($sPathFile, $sExtensionFile, $sActionCommand)
+	If _IsDir($sPathFile) Then Return $STATUS_SKIPPED_FOLDER
+	If Not IsArray(_GetCommandSupportedFormats($sActionCommand)) Then Return $STATUS_SKIPPED
+	If StringLeft($sActionCommand, 2) = 'to' And _FormatGroup($sExtensionFile) = _FormatGroup(StringTrimLeft($sActionCommand, 2)) Then _
+			Return $STATUS_SKIPPED
+	Return $STATUS_NOT_SUPPORTED
+EndFunc   ;==>_UnsupportedStatus
 
 
 ; Забирает файлы, пришедшие в очередь во время обработки. Если свежие файлы только что
@@ -652,17 +941,116 @@ EndFunc   ;==>_WaitQueueFiles
 
 
 Func _SetLabel($bComplete)
-	Local $sSavedPercent = _GetCompressingPercent($g_iAllWinnerSize, $g_iAllFileSize)
-	Local $sSavedSize = _GetFileSizeStr($g_iAllFileSize - $g_iAllWinnerSize)
-	GUICtrlSetData($g_iLblInfo, _
-			($bComplete ? _Lang('Main', 'Complete', 'Complete') : _Lang('Main', 'Progress', 'Progress')) & _
-			': ' & $g_iFileIndex & '/' & $g_aFileList[0][0] & _
-			($sSavedPercent <> '' ? '    ' & _Lang('Main', 'Saved', 'Saved') & ': ' & $sSavedPercent : '') & _
-			($sSavedSize <> '' ? '    ' & _Lang('Main', 'SizeTotal', 'Size') & ': -' & $sSavedSize : ''))
+	$g_iInfoState = $bComplete ? 2 : 1
+	; В работе подвал и заголовок обновляются не чаще таблицы: картинка подвала на каждый файл
+	; заметно тормозила очередь из тысяч пропусков. Пропущенное обновление дорисует Adlib
+	If Not $bComplete And TimerDiff($g_hInfoUpdate) < $gc_iGuiUpdateMs Then
+		If Not $g_bInfoPending Then
+			$g_bInfoPending = True
+			AdlibRegister('_SetLabelDeferred', $gc_iGuiUpdateMs)
+		EndIf
+		Return
+	EndIf
+	If $g_bInfoPending Then
+		$g_bInfoPending = False
+		AdlibUnRegister('_SetLabelDeferred')
+	EndIf
+	$g_hInfoUpdate = TimerInit()
+	_DrawInfo()
 
 	Local $iPercent = $bComplete ? 100 : Round(($g_iFileIndex - 1) / $g_aFileList[0][0] * 100)
-	WinSetTitle($g_hGui, '', $gc_sAppName & '  [' & $iPercent & '%]' & _UpdateTitleSuffix())
+	WinSetTitle($g_hGui, '', $gc_sAppName & '  [' & $g_iFileIndex & '/' & $g_aFileList[0][0] & ' ' & $iPercent & '%]' & _
+			_UpdateTitleSuffix())
 EndFunc   ;==>_SetLabel
+
+
+Func _SetLabelDeferred()
+	; Завершение уже обновило подвал само и сняло этот вызов
+	If $g_bInfoPending Then _SetLabel(False)
+EndFunc   ;==>_SetLabelDeferred
+
+
+; Подвал: значок и счётчик файлов, итог сжатия, число ошибок. У частей свои цвета
+; и жирность, поэтому строка рисуется картинкой
+Func _DrawInfo()
+	Local $aSize = _FluentCtrlSize($g_iPicInfo)
+	If $aSize[0] < 1 Or $aSize[1] < 1 Then Return
+	Local $nH = $aSize[1], $hGfx
+	Local $hCanvas = _FluentCanvas($aSize[0], $nH, _FluentArgb($g_iFluentBg), $hGfx)
+
+	If $g_iInfoState Then
+		Local $bDone = $g_iInfoState = 2
+		Local $hFont = _FluentFont(), $hSemi = _FluentFont(0, True)
+		_FluentDrawIcon($hGfx, $bDone ? 'StatusDone' : 'StatusWork', 14, $bDone ? $g_iClrGood : $g_iClrMuted, 1, Int(($nH - 14) / 2))
+		Local $nX = 19
+		$nX = _InfoText($hGfx, $bDone ? _Lang('Main', 'Complete', 'Done') : _Lang('Main', 'Progress', 'In progress'), _
+				$nX, $nH, $hFont, $g_iClrText)
+		$nX = _InfoText($hGfx, $g_iFileIndex & ' / ' & $g_aFileList[0][0], $nX, $nH, $hSemi, $g_iClrText)
+
+		Local $sSavedSize = _GetFileSizeStr($g_iAllFileSize - $g_iAllWinnerSize)
+		If $sSavedSize <> '' Then
+			$nX = _InfoDot($hGfx, $nX, $nH)
+			$nX = _InfoText($hGfx, _Lang('Main', 'Saved', 'Saved'), $nX, $nH, $hFont, $g_iClrText)
+			$nX = _InfoText($hGfx, '-' & $sSavedSize, $nX, $nH, $hSemi, $g_iClrGood)
+			$nX = _InfoText($hGfx, '(' & _GetCompressingPercent($g_iAllWinnerSize, $g_iAllFileSize) & ')', _
+					$nX, $nH, $hFont, $g_iClrMuted)
+		EndIf
+		If $g_iErrorCount Then
+			$nX = _InfoDot($hGfx, $nX, $nH)
+			_InfoText($hGfx, _ErrorCountStr($g_iErrorCount), $nX, $nH, $hFont, $g_iClrBad)
+		EndIf
+	EndIf
+
+	_FluentCanvasApply($g_iPicInfo, $g_hInfoBitmap, $hCanvas, $hGfx)
+EndFunc   ;==>_DrawInfo
+
+
+; Часть строки подвала с $nX. Возвращает, откуда рисовать следующую
+Func _InfoText($hGfx, $sText, $nX, $nH, $hFont, $iRgb)
+	Local $nW = _FluentTextW($sText, $hFont)
+	; Запас по ширине: строка без переноса обрезается по прямоугольнику
+	_FluentText($hGfx, $sText, $nX, 0, $nW + 8, $nH, $hFont, _FluentArgb($iRgb))
+	Return $nX + $nW + 1
+EndFunc   ;==>_InfoText
+
+
+; Точка-разделитель между частями подвала
+Func _InfoDot($hGfx, $nX, $nH)
+	_FluentFill($hGfx, $nX + 4, Int($nH / 2) - 1, 3, 3, 1.5, _FluentArgb($g_iClrMuted, 180))
+	Return $nX + 12
+EndFunc   ;==>_InfoDot
+
+
+; «3 ошибки»: форма слова по правилу русского языка, сами формы в Lang
+Func _ErrorCountStr($iCount)
+	Local $sForm = 'Many'
+	If Mod($iCount, 10) = 1 And Mod($iCount, 100) <> 11 Then
+		$sForm = 'One'
+	ElseIf Mod($iCount, 10) >= 2 And Mod($iCount, 10) <= 4 And (Mod($iCount, 100) < 12 Or Mod($iCount, 100) > 14) Then
+		$sForm = 'Few'
+	EndIf
+	Return StringReplace(_Lang('Main', 'Errors' & $sForm, '%1 errors'), '%1', $iCount)
+EndFunc   ;==>_ErrorCountStr
+
+
+; Подвал перерисовывается под новую ширину, когда докинг уже подогнал картинку: WM_SIZE
+; приходит раньше. Отложенное сообщение выбирается после докинга, но до WM_PAINT
+Func _OnEvent_WM_SIZE($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $iMsg, $wParam, $lParam
+	If $hWnd <> $g_hGui Or $g_bInfoSyncPosted Then Return $GUI_RUNDEFMSG
+	$g_bInfoSyncPosted = True
+	_WinAPI_PostMessage($g_hGui, $gc_iWmInfoSync, 0, 0)
+	Return $GUI_RUNDEFMSG
+EndFunc   ;==>_OnEvent_WM_SIZE
+
+
+Func _OnEvent_WM_INFOSYNC($hWnd, $iMsg, $wParam, $lParam)
+	#forceref $iMsg, $wParam, $lParam
+	If $hWnd <> $g_hGui Then Return $GUI_RUNDEFMSG
+	$g_bInfoSyncPosted = False
+	_DrawInfo()
+	Return 0
+EndFunc   ;==>_OnEvent_WM_INFOSYNC
 
 
 ; Папка файла без завершающего '\'
@@ -694,39 +1082,53 @@ Func _UpdateGUI($bForce = False)
 
 	; Результаты в показанных строках. Файлы обрабатываются по порядку, поэтому после
 	; первой строки без результата их нет и дальше
-	Local $aResult
-	For $i = $g_iLastUpdated + 1 To $g_iRowsShown
+	Local $aResult, $iFirstUpdated = $g_iLastUpdated + 1
+	For $i = $iFirstUpdated To $g_iRowsShown
 		If Not StringLen($g_aFileList[$i][4]) Then ExitLoop
-		; Результат: размер|новый|процент|разница|задача - колонки с 1 по 5
 		$aResult = StringSplit($g_aFileList[$i][4], '|')
-		For $iCol = 1 To 5
-			_UpdateListViewItemIfChanged($i - 1, $iCol, $aResult[$iCol])
+		For $iField = 1 To 5
+			If $gc_aResultCol[$iField] >= 0 Then _UpdateListViewItemIfChanged($i - 1, $gc_aResultCol[$iField], $aResult[$iField])
 		Next
 		$g_iLastUpdated = $i
 	Next
+	; Статус и экономию рисует NM_CUSTOMDRAW по очереди, а не по тексту строки: перерисовать явно
+	If $g_iLastUpdated >= $iFirstUpdated Then _GUICtrlListView_RedrawItems($g_iListView, $iFirstUpdated - 1, $g_iLastUpdated - 1)
 
 	; Новые строки порциями: десять тысяч строк разом надолго заняли бы окно
 	Local $iLast = _Min($g_aFileList[0][0], $g_iRowsShown + $gc_iGuiRowsPerUpdate)
 	If $iLast > $g_iRowsShown Then
 		Local $sPathFile, $iRow
+		Local $bTaskWider = False
 		_GUICtrlListView_BeginUpdate($g_iListView)
 		For $i = $g_iRowsShown + 1 To $iLast
 			$sPathFile = $g_aFileList[$i][1]
 			$iRow = $i - 1
-			_GUICtrlListView_AddItem($g_iListView, ' ' & _GetFileName($sPathFile), _GetIconIndexByPathFile($sPathFile))
+			If _NoteTaskWidth($g_aFileList[$i][2]) Then $bTaskWider = True
+			_GUICtrlListView_AddItem($g_iListView, '')
+			_GUICtrlListView_AddSubItem($g_iListView, $iRow, _GetFileName($sPathFile), $COL_FILE)
 			If StringLen($g_aFileList[$i][4]) Then
 				$aResult = StringSplit($g_aFileList[$i][4], '|')
-				For $iCol = 1 To 5
-					If $aResult[$iCol] <> '' Then _GUICtrlListView_AddSubItem($g_iListView, $iRow, $aResult[$iCol], $iCol)
+				For $iField = 1 To 5
+					If $gc_aResultCol[$iField] >= 0 And $aResult[$iField] <> '' Then _
+							_GUICtrlListView_AddSubItem($g_iListView, $iRow, $aResult[$iField], $gc_aResultCol[$iField])
 				Next
 				If $i = $g_iLastUpdated + 1 Then $g_iLastUpdated = $i
 			Else
-				_GUICtrlListView_AddSubItem($g_iListView, $iRow, _GetActionStr($g_aFileList[$i][2]), 5)
+				_GUICtrlListView_AddSubItem($g_iListView, $iRow, _GetActionStr($g_aFileList[$i][2]), $COL_TASK)
 			EndIf
 		Next
 		$g_iRowsShown = $iLast
 		_GUICtrlListView_EndUpdate($g_iListView)
+		If $bTaskWider Then _FitTaskColumn()
 		_ListViewResize()
+	EndIf
+
+	; Файл в работе сменился: его строка из очереди становится «в работе». Прежняя строка
+	; перерисовалась выше вместе с результатом
+	Local Static $iWorkRow = -1
+	If $g_iFileIndex - 1 <> $iWorkRow And $g_iFileIndex <= $g_iRowsShown Then
+		$iWorkRow = $g_iFileIndex - 1
+		_GUICtrlListView_RedrawItems($g_iListView, $iWorkRow, $iWorkRow)
 	EndIf
 
 	; Строка нового файла могла появиться только сейчас
@@ -741,24 +1143,22 @@ Func _UpdateListViewItemIfChanged($iIndex, $iSubItem, $sNewText)
 EndFunc   ;==>_UpdateListViewItemIfChanged
 
 
-; Прокручивает таблицу к обрабатываемому файлу и подсвечивает строку последнего
-; обработанного: подсветка файла в работе, ещё без результата, выглядела как сбой.
-; Подсветку рисует WM_NOTIFY по $g_iDoneRow, а не системное выделение: оно
-; не видно без фокуса и мешало бы выделению пользователя.
-; После завершения подсветка остаётся на последнем файле, снимает её клик по окну ($g_bAutoScroll = False)
+; Прокручивает таблицу к последнему обработанному файлу и подсвечивает его строку. Подсветку
+; рисует NM_CUSTOMDRAW по $g_iScrollRow, а не системное выделение: оно не видно без фокуса
+; и мешало бы выделению пользователя. Клик по окну выключает прокрутку вместе с подсветкой
+; ($g_bAutoScroll = False), новые файлы в очереди включают снова (_AddToFileListData)
 Func _AutoScrollToCurrent()
 	Local $iRow = -1
 	If $g_bAutoScroll Then $iRow = $g_bComplete ? $g_iFileIndex - 1 : $g_iFileIndex - 2
 	Local $iLastRow = _GUICtrlListView_GetItemCount($g_iListView) - 1
-	If $iRow = $g_iDoneRow Or $iRow > $iLastRow Then Return
-
-	Local $iOldRow = $g_iDoneRow
-	$g_iDoneRow = $iRow
+	If $iRow = $g_iScrollRow Or $iRow > $iLastRow Then Return
+	Local $iOldRow = $g_iScrollRow
+	$g_iScrollRow = $iRow
 	If $iOldRow >= 0 Then _GUICtrlListView_RedrawItems($g_iListView, $iOldRow, $iOldRow)
 	If $iRow < 0 Then Return
-
 	_GUICtrlListView_RedrawItems($g_iListView, $iRow, $iRow)
-	; Подсвеченная строка - по центру видимой части (при 5 строках под ней файл в работе
+
+	; Строка по центру видимой части (при 5 строках под ней файл в работе
 	; и ещё один), у конца списка ниже центра
 	Local $iBelow = $iRow + Int(_GUICtrlListView_GetCounterPage($g_iListView) / 2)
 	_GUICtrlListView_EnsureVisible($g_iListView, $iBelow < $iLastRow ? $iBelow : $iLastRow)
@@ -775,14 +1175,15 @@ Func _ShowResult($sPathFile, $iFileSize, $iWinnerSize, $iStatusError = 0)
 		$sActionCommand = $g_aFileList[$g_iFileIndex][3]
 
 		Switch $iStatusError
+			; Файл не изменился: в «Стало» прежний размер
 			Case $STATUS_APP_ERROR
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'Error', 'error')
-				$iWinnerSize = 0
+				$iWinnerSize = $iFileSize
 			Case $STATUS_NOT_SUPPORTED
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'NotSupported', 'not supported')
-				$iWinnerSize = 0
+				$iWinnerSize = $iFileSize
 			Case $STATUS_SAVE_ERROR
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'SaveError', 'save error')
@@ -790,11 +1191,11 @@ Func _ShowResult($sPathFile, $iFileSize, $iWinnerSize, $iStatusError = 0)
 			Case $STATUS_PALETTE_LARGER
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'PaletteLarger', 'few colors')
-				$iWinnerSize = 0
+				$iWinnerSize = $iFileSize
 			Case $STATUS_SKIPPED_FOLDER
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'Skipped', 'skipped')
-				$iWinnerSize = 0
+				$iWinnerSize = $iFileSize
 			Case $STATUS_SKIPPED
 				$sCompressingSize = ''
 				$sCompressingPercent = _Lang('Status', 'Skipped', 'skipped')
@@ -804,26 +1205,78 @@ Func _ShowResult($sPathFile, $iFileSize, $iWinnerSize, $iStatusError = 0)
 				$sCompressingPercent = _GetCompressingPercent($iWinnerSize, $iFileSize)
 
 				; Итог «сэкономлено» - только у сжатия: у конвертации и ресайза размер меняется по другой причине
-				If StringInStr($sActionCommand, 'cq') Or $sActionCommand = 'lossy' Or $sActionCommand = 'web' Or $sActionCommand = 'loss' Then
+				If _IsCompressionCommand($sActionCommand) Then
 					$g_iAllWinnerSize += $iWinnerSize
 					$g_iAllFileSize += $iFileSize
+				Else
+					$iStatusError = $STATUS_CONVERTED
 				EndIf
 		EndSwitch
+		If $iStatusError = $STATUS_APP_ERROR Or $iStatusError = $STATUS_SAVE_ERROR Then $g_iErrorCount += 1
 
 		_AddLogLine($sCompressingPercent & ', ' & $sCompressingSize)
 
-		; Строка таблицы: размер|новый|процент|разница|задача
+		; Строка таблицы: размер|новый|процент|разница|задача|статус
 		$g_aFileList[$g_iFileIndex][4] = _GetFileSizeStr($iFileSize) & '|' & _GetFileSizeStr($iWinnerSize) & '|' & _
-				$sCompressingPercent & '|' & $sCompressingSize & '|' & _GetActionStr($g_aFileList[$g_iFileIndex][2])
+				$sCompressingPercent & '|' & $sCompressingSize & '|' & _GetActionStr($g_aFileList[$g_iFileIndex][2]) & _
+				'|' & $iStatusError
 	EndIf
 EndFunc   ;==>_ShowResult
 
 
+; Короткое название задачи для тега: lossless, lossy, web, JPG, resize. Любое сжатие без потерь -
+; lossless, с метаданными оно отличается только иконкой. Конвертация - формат без стрелки, ресайз -
+; resize без размера. У остальных постфикс (_cq256) без подчёркивания
 Func _GetActionStr($sActionName)
-	If Not MapExists($g_oActionTitle, $sActionName) Then _
-			$g_oActionTitle[$sActionName] = _ActionRead($sActionName, 'ShortGuiTitle')
+	If Not MapExists($g_oActionTitle, $sActionName) Then
+		Local $sCommand = _ActionRead($sActionName, 'Command'), $sTitle
+		Local $aFormat = StringRegExp($sCommand, '^to(\w+)$', 1)
+		Local $bConvert = Not @error
+		If $sCommand = 'loss' Then
+			$sTitle = 'lossless'
+		ElseIf $bConvert Then
+			$sTitle = StringUpper($aFormat[0])
+		ElseIf StringLeft($sCommand, 3) = 'per' Or StringInStr($sCommand, 'resize') Then
+			; Те же признаки ресайза, что у разбора команды в _CompressFile
+			$sTitle = 'resize'
+		Else
+			$sTitle = StringRegExpReplace(_ActionRead($sActionName, 'ShortGuiTitle'), '^_', '')
+		EndIf
+		$g_oActionTitle[$sActionName] = $sTitle
+	EndIf
 	Return $g_oActionTitle[$sActionName]
 EndFunc   ;==>_GetActionStr
+
+
+; Иконка действия в теме окна Moth, как у пункта меню проводника. Индекс в $g_hTaskImageList или -1
+Func _GetTaskIconIndex($sActionName)
+	If MapExists($g_oTaskIcon, $sActionName) Then Return $g_oTaskIcon[$sActionName]
+
+	Local $iIndex = -1, $hIcon = 0
+	Local $sIcon = _ActionRead($sActionName, 'Icon')
+	If $sIcon <> '' Then
+		Local $sPath = _GetThemePath() & '\' & _ThemeIconName($sIcon)
+		If FileExists($sPath) Then
+			$hIcon = _WinAPI_LoadImage(0, $sPath, $IMAGE_ICON, 16, 16, $LR_LOADFROMFILE)
+		Else
+			; Не файл темы, а *.jpg и подобное: иконка формата из системы
+			Local $aInfo = _ExplorerIcon_Get($sIcon)
+			$hIcon = _WinAPI_ShellExtractIcon($aInfo[1], $aInfo[2], 16, 16)
+		EndIf
+	EndIf
+	If $hIcon Then
+		$iIndex = _GUIImageList_ReplaceIcon($g_hTaskImageList, -1, $hIcon)
+		_WinAPI_DestroyIcon($hIcon)
+	EndIf
+	$g_oTaskIcon[$sActionName] = $iIndex
+	Return $iIndex
+EndFunc   ;==>_GetTaskIconIndex
+
+
+; Сжатие, а не конвертация или ресайз: только у него считается итог «сэкономлено»
+Func _IsCompressionCommand($sCommand)
+	Return StringInStr($sCommand, 'cq') > 0 Or $sCommand = 'lossy' Or $sCommand = 'web' Or $sCommand = 'loss'
+EndFunc   ;==>_IsCompressionCommand
 
 
 ; Иконка кешируется по расширению: у всех файлов одного типа она одна
@@ -859,16 +1312,22 @@ EndFunc   ;==>_OnEvent_WM_GETMINMAXINFO
 
 ; Колонка файла забирает всю ширину, свободную от остальных колонок и полосы прокрутки
 Func _ListViewResize()
-	Local $aPos = ControlGetPos($g_hGui, '', $g_iListView)
-	If @error Then Return
-
-	; Строки выше таблицы - справа полоса прокрутки шириной 17. Поправка 18 подобрана
-	Local $iWidth = $aPos[2]
-	If _GUICtrlListView_ApproximateViewHeight($g_iListView) - 18 > $aPos[3] Then $iWidth -= 17
-	For $iCol = 1 To 5
-		$iWidth -= _GUICtrlListView_GetColumnWidth($g_iListView, $iCol)
+	; Клиентская ширина без рамки и без показанной полосы прокрутки. Только что добавленные строки
+	; полосу ещё не показали: она нужна, если строки с шапкой выше таблицы. Иначе колонка выходила
+	; шире, появлялась горизонтальная прокрутка, а шапка после неё оставалась недорисованной
+	Local $hLV = GUICtrlGetHandle($g_iListView)
+	Local $iWidth = _WinAPI_GetClientWidth($hLV)
+	If $iWidth <= 0 Then Return
+	Local $iCount = _GUICtrlListView_GetItemCount($g_iListView)
+	If $iCount And Not BitAND(_WinAPI_GetWindowLong($hLV, $GWL_STYLE), $WS_VSCROLL) Then
+		Local $aRow = _GUICtrlListView_GetItemRect($g_iListView, 0)
+		If _WinAPI_GetWindowHeight(_GUICtrlListView_GetHeader($g_iListView)) + $iCount * ($aRow[3] - $aRow[1]) > _
+				_WinAPI_GetClientHeight($hLV) Then $iWidth -= _WinAPI_GetSystemMetrics($SM_CXVSCROLL)
+	EndIf
+	For $iCol = 0 To 5
+		If $iCol <> $COL_FILE Then $iWidth -= _GUICtrlListView_GetColumnWidth($g_iListView, $iCol)
 	Next
-	_GUICtrlListView_SetColumnWidth($g_iListView, 0, $iWidth)
+	_GUICtrlListView_SetColumnWidth($g_iListView, $COL_FILE, $iWidth)
 EndFunc   ;==>_ListViewResize
 
 
@@ -1025,6 +1484,9 @@ EndFunc   ;==>_TakeTasks
 Func _AddToFileListData($sPathFile, $sActionName, $sAddSource)
 	Local $aFileList, $sActionCommand
 
+	; Новые файлы: таблица снова следует за работой, даже если прокрутку выключил клик
+	$g_bAutoScroll = True
+
 	$sPathFile = StringStripWS($sPathFile, 3)
 	If Not MapExists($g_oActionCommand, $sActionName) Then _
 			$g_oActionCommand[$sActionName] = _ActionRead($sActionName, 'Command')
@@ -1070,14 +1532,8 @@ EndFunc   ;==>_AddToFileListData
 ; ============================================================
 
 Func _ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sWinnerPath, $sTempPath, $sSourceFile, $iError
-	Local $sColors = _GetNumberFromString(_IniString_Read($gc_sMothIni, $sActionName, 'Command'))
+	Local $sColors = _GetNumberFromString(_ActionRead($sActionName, 'Command'))
 
 	; Квантизация цвета. Дизеринг Riemersma идёт по кривой Гильберта: на градиентах
 	; меньше шума, чем у Floyd-Steinberg, и файл на тестовых PNG выходит на 25-40% меньше.
@@ -1158,12 +1614,6 @@ EndFunc   ;==>_RunReadOutput
 ; ============================================================
 
 Func _ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sWinnerPath, $iWinnerSize, $sActionCommand, $aLineSplit
 	Local $sPercent, $sFilter = 0
 
@@ -1201,12 +1651,6 @@ EndFunc   ;==>_ResizePercent
 
 
 Func _ResizePixel($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sWinnerPath, $iWinnerSize, $sActionCommand, $aLineSplit
 	Local $sUtilParams, $sSize, $iMode
 
@@ -1270,12 +1714,6 @@ EndFunc   ;==>_MagickEncodeArgs
 ; ============================================================
 
 Func _ConvertToPng($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_PNG ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	; Конвертация: поворот по Exif, у анимации первый кадр, HEIC в sRGB
 	Local $sPathFilePng = _DecodeToPng($sPathFile, $sExtensionFile)
 	If @error Then
@@ -1294,12 +1732,6 @@ EndFunc   ;==>_ConvertToPng
 
 
 Func _ConvertToWebp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_WEBP ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sPathFileWebp = _GetTempPathFileForCompression('cwebp', $FORMAT_WEBP)
 	Local $sSourceFile = $sPathFile, $sParams = '-lossless'
 
@@ -1353,18 +1785,6 @@ EndFunc   ;==>_ConvertToWebp
 
 ; JPG и JFIF - один и тот же JPEG, у JFIF в начале обязателен заголовок APP0 «JFIF»
 Func _ConvertToJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $sFormatOut = $FORMAT_JPG)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		Local $iStatus = $STATUS_NOT_SUPPORTED
-		If $sFormatOut = $FORMAT_JFIF Then
-			If $sExtensionFile = $FORMAT_JFIF Then $iStatus = $STATUS_SKIPPED
-		ElseIf $sExtensionFile = $FORMAT_JPG Or $sExtensionFile = $FORMAT_JPE Or $sExtensionFile = $FORMAT_JPEG Then
-			$iStatus = $STATUS_SKIPPED
-		EndIf
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $iStatus)
-		Return
-	EndIf
-
 	Local $sPathFileJpg = _GetTempPathFileForCompression('magick', $FORMAT_JPG), $sWinnerPath, $iWinnerSize, $sSourceFile = $sPathFile
 	; Прозрачность заливается белым: без заливки фон становился чёрным. У анимации первый кадр
 	Local $sCommand = '{pathFile} -quiet -background white -alpha remove -alpha off {pathFileOut}'
@@ -1372,7 +1792,7 @@ Func _ConvertToJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $sForm
 	Switch $sExtensionFile
 		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
 			; Тот же JPEG: перекодировать незачем, только повернуть по Exif и сжать без потерь.
-			; JPG в JPG сюда не доходит: его отсеял _IsFormatSupported
+			; JPG в JPG сюда не доходит: его отсеял _CompressFile
 			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
 			$sSourceFile = ''
 
@@ -1424,12 +1844,6 @@ EndFunc   ;==>_ConvertToJpg
 ; поворот по Exif сохраняется в заголовке JXL. PNG, GIF (с анимацией), BMP и WEBP без
 ; потерь идут в JXL без потерь, AVIF, HEIC и WEBP с потерями - визуально без потерь (-d 1)
 Func _ConvertToJxl($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_JXL ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sSourceFile = $sPathFile, $sParams
 	Switch $sExtensionFile
 		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
@@ -1464,12 +1878,6 @@ EndFunc   ;==>_ConvertToJxl
 ; а фото от 4:4:4 прибавляют в размере всего пару процентов.
 ; Профиль ImageMagick переносит, прозрачность сохраняется, у анимации первый кадр
 Func _ConvertToAvif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_AVIF ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sPng = _DecodeToPng($sPathFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
@@ -1486,13 +1894,6 @@ EndFunc   ;==>_ConvertToAvif
 ; 4:4:4 чётче на цветном тексте, но его открывает не всякий просмотрщик HEIC.
 ; Профиль и прозрачность переносятся, у анимации первый кадр
 Func _ConvertToHeic($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		Local $bHeic = $sExtensionFile = $FORMAT_HEIC Or $sExtensionFile = $FORMAT_HEIF
-		_ShowResult($sPathFile, $iFileSize, 0, $bHeic ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sPng = _DecodeToPng($sPathFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
@@ -1511,12 +1912,6 @@ EndFunc   ;==>_ConvertToHeic
 ; с профилем P3 поблёкнет, палитра с тем же дизерингом, что у пункта «Палитра».
 ; Анимированный WEBP переносится с анимацией, у остальных первый кадр. Дожимает gifsicle
 Func _ConvertToGif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_GIF ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sSourceFile = $sPathFile, $bTemp = False
 	If Not ($sExtensionFile = $FORMAT_WEBP And _WebpIsAnimated($sPathFile)) Then
 		$sSourceFile = _DecodeToPng($sPathFile, $sExtensionFile)
@@ -1546,12 +1941,6 @@ EndFunc   ;==>_ConvertToGif
 ; BMP без сжатия, профиля и прозрачности: альфу BMP просмотрщики понимают плохо,
 ; поэтому фон заливается белым, как у JPG, а цвет переводится в sRGB. Дожимает ImageWorsener
 Func _ConvertToBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $sExtensionFile = $FORMAT_BMP ? $STATUS_SKIPPED : $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sPng = _DecodeToPng($sPathFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
@@ -1763,8 +2152,8 @@ EndFunc   ;==>_JpegAddJfifHeader
 ; Два варианта без потерь, jpegoptim и ECT, побеждает меньший
 Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sWinnerPath, $sRunKey, $sPathFileJpg
-	Local $bSaveExif = _IniString_Read($gc_sMothIni, $sActionName, 'SaveExif') = 1
-	Local $bToProgressive = _IniString_Read($gc_sMothIni, $sActionName, 'ToProgressive') = 1
+	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
+	Local $bToProgressive = _ActionRead($sActionName, 'ToProgressive') = 1
 
 	; Без Exif пропал бы и поворот: применяем его заранее
 	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
@@ -1816,8 +2205,8 @@ EndFunc   ;==>_CompressionJpg
 
 Func _CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sWinnerPath, $sPathFileJpg, $sRunKey
-	Local $bSaveExif = _IniString_Read($gc_sMothIni, $sActionName, 'SaveExif') = 1
-	Local $bToProgressive = _IniString_Read($gc_sMothIni, $sActionName, 'ToProgressive') = 1
+	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
+	Local $bToProgressive = _ActionRead($sActionName, 'ToProgressive') = 1
 
 	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
 
@@ -1848,7 +2237,7 @@ EndFunc   ;==>_CompressionBmp
 
 ; pingo по умолчанию вырезает все метаданные, с -nostrip оставляет eXIf, XMP и текст
 Func _CompressionPng($sFilePath, $nOriginalSize, $sExtension, $sAction)
-	Local $bSaveExif = _IniString_Read($gc_sMothIni, $sAction, 'SaveExif') = 1
+	Local $bSaveExif = _ActionRead($sAction, 'SaveExif') = 1
 	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'pingo', _
 			'-lossless' & ($bSaveExif ? ' -nostrip' : '') & ' {pathFile}')
 EndFunc   ;==>_CompressionPng
@@ -1891,7 +2280,7 @@ EndFunc   ;==>_SaveIfSmaller
 ; В сжатии без потерь pingo остаётся только для PNG, WebP пережимает cwebp.
 ; Из WEBP он переносит только профиль, Exif и XMP возвращает _WebpCopyMeta
 Func _CompressionWebP($sFilePath, $nOriginalSize, $sExtension, $sAction)
-	Local $bSaveExif = _IniString_Read($gc_sMothIni, $sAction, 'SaveExif') = 1
+	Local $bSaveExif = _ActionRead($sAction, 'SaveExif') = 1
 	Local $sCompressedPath = _CompressionRun('cwebp', '-lossless -mt' & _WebpMetaArgs($bSaveExif Or _IccKeep($sFilePath)) & _
 			' {pathFile} -o {pathFile}', $sFilePath, $sExtension)
 	If @error Then
@@ -1979,7 +2368,7 @@ EndFunc   ;==>_WebpReadFile
 ; поэтому остаются всегда. У пикселей без SaveExif вырезаются, поворот хранит заголовок JXL
 Func _CompressionJxl($sFilePath, $nOriginalSize, $sExtension, $sAction)
 	Local $sCompressedPath, $sJpg
-	Local $bSaveExif = _IniString_Read($gc_sMothIni, $sAction, 'SaveExif') = 1
+	Local $bSaveExif = _ActionRead($sAction, 'SaveExif') = 1
 	Switch _JxlKind($sFilePath)
 		Case 'jpeg'
 			$sJpg = _ConvertRun('djxl', '{pathFile} {pathFileOut} --quiet', $sFilePath, _GetTempPathFileForCompression('djxl', $FORMAT_JPG))
@@ -2148,12 +2537,6 @@ EndFunc   ;==>_GetFreePathFile
 ; ============================================================
 
 Func _CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sWinnerPath = '', $sRunKey, $sPathFileJpg
 	Switch $sExtensionFile
 		Case $FORMAT_AVIF
@@ -2222,12 +2605,6 @@ EndFunc   ;==>_CompressionLossy
 ; ============================================================
 
 Func _CompressionForWeb($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
-		_UpdateGUI()
-		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_NOT_SUPPORTED)
-		Return
-	EndIf
-
 	Local $sWinnerPath = '', $sRunKey, $sPathFileJpg
 	Switch $sExtensionFile
 		Case $FORMAT_AVIF
@@ -2361,7 +2738,8 @@ EndFunc   ;==>_GetCompressingSize
 Func _GetCompressingPercent($nCompressedSize, $nOriginalSize)
 	If $nOriginalSize = 0 Or $nOriginalSize = $nCompressedSize Then Return ''
 	Local $nPercent = (($nCompressedSize / $nOriginalSize) - 1) * 100
-	Local $nDisplay = Round($nPercent, 2)
+	; Больше 99% по модулю дробная часть не нужна: +1550.78% читается хуже +1551%
+	Local $nDisplay = Round($nPercent, Abs($nPercent) > 99 ? 0 : 2)
 	; Округлилось до нуля - знаков после запятой столько, чтобы стала видна первая значащая цифра
 	If $nDisplay = 0 And $nPercent <> 0 Then $nDisplay = Round($nPercent, -Int(Floor(Log(Abs($nPercent)) / Log(10))))
 

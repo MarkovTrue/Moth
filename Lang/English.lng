@@ -3,17 +3,18 @@
 
 [Main]
 ColFile=File
-ColSize=Size
-ColNew=New
-ColPercent=Percent
+ColBefore=Before
+ColAfter=After
 ColSaved=Saved
 ColTask=Task
 ShowInExplorer=Show in Explorer
 CopyAsPath=Copy as path
-Progress=Progress
-Complete=Complete
+Progress=In progress
+Complete=Done
 Saved=Saved
-SizeTotal=Size
+ErrorsOne=%1 error
+ErrorsFew=%1 errors
+ErrorsMany=%1 errors
 Settings=Settings
 
 [Status]
@@ -22,6 +23,8 @@ NotSupported=not supported
 SaveError=save error
 Skipped=skipped
 PaletteLarger=few colors
+Working=processing
+Queued=queued
 
 [Units]
 B=B
@@ -81,10 +84,10 @@ LastCheckNever=No checks yet
 
 [Actions]
 Moth.CompressionLossless=Lossless compression
-Moth.CompressionLosslessJpegExif=Lossless compression, keep Exif
-Moth.CompressionLosslessJpegProgressive=Lossless compression, progressive
+Moth.CompressionLosslessMeta=Lossless, keep metadata
+Moth.CompressionLosslessMeta.JPG=Lossless, keep Exif
+Moth.CompressionLosslessMeta.JFIF=Lossless, keep Exif
 Moth.CompressionLossy=Lossy compression
-Moth.CompressionLossyJpegExif=Lossy compression, keep Exif
 Moth.CompressionWeb=Compression for WEB
 Moth.ColorQuantization64=Palette 64 colors
 Moth.ColorQuantization128=Palette 128 colors
@@ -92,8 +95,6 @@ Moth.ColorQuantization256=Palette 256 colors
 Moth.ColorQuantization512=Palette 512 colors
 Moth.ColorQuantization1024=Palette 1024 colors
 Moth.ColorQuantization2048=Palette 2048 colors
-Moth.Resize50=Resize 50%
-Moth.Resize200=Resize 200%
 Moth.ConvertToJpg=Convert to JPG
 Moth.ConvertToJfif=Convert to JFIF
 Moth.ConvertToPng=Convert to PNG
@@ -106,16 +107,10 @@ Moth.ConvertToBmp=Convert to BMP
 Moth.Convert=Convert…
 Moth.ColorQuantization=Change palette…
 Moth.Resizer=Resize…
-
-; Short titles inside the "Convert" submenu (Group=)
-[ActionsInGroup]
-Moth.ConvertToWebp=to WEBP
-Moth.ConvertToAvif=to AVIF
-Moth.ConvertToHeic=to HEIC
-Moth.ConvertToJxl=to JXL
-Moth.ConvertToGif=to GIF
-Moth.ConvertToBmp=to BMP
-Moth.ConvertToJfif=to JFIF
+; Name used in Moth.ini before 1.41
+Moth.CompressionLosslessJpegExif=Lossless, keep metadata
+Moth.CompressionLosslessJpegExif.JPG=Lossless, keep Exif
+Moth.CompressionLosslessJpegExif.JFIF=Lossless, keep Exif
 
 ; "Resize…" window. A preset: MenuTitle, %1 - its size ("50%", "1920x1080", "to width 1920")
 [Resizer]
