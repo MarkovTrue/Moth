@@ -2,8 +2,8 @@
 #pragma compile(Icon, Assets\Icons\Icon.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth)
-#pragma compile(ProductVersion, 1.40)
-#pragma compile(FileVersion, 1.40)
+#pragma compile(ProductVersion, 1.42)
+#pragma compile(FileVersion, 1.42)
 #pragma compile(FileDescription, Moth - сжатие изображений без потерь)
 #pragma compile(CompanyName, MarkovTrue)
 #pragma compile(LegalCopyright, © MarkovTrue)
@@ -86,10 +86,13 @@ _CheckSingleInstance()
 Global $g_bLog = _IniString_Read($gc_sMothIni, 'Config', 'Log', '0') = 1
 
 
-; Журнал, файлы перетаскивания, итог сжатия в байтах, текущий файл очереди, потолок прогресса
-; на этот файл и PID работающей утилиты
+; Журнал, файлы перетаскивания, итог сжатия в байтах, текущий файл очереди и потолок прогресса
+; на этот файл
 Global $g_sLog = '', $g_aDropList, $g_iAllWinnerSize = 0, $g_iAllFileSize = 0, _
-		$g_iFileIndex = 1, $g_iProgressMax, $g_iUtilPid
+		$g_iFileIndex = 1, $g_iProgressMax
+; Работающие утилиты: дескриптор процесса по PID. Их бывает несколько: варианты сжатия
+; одного файла идут разом. Дескриптор держит PID за процессом, пока его не дождались
+Global $g_oUtilProcess[]
 
 ; GUI handles / ControlIDs
 Global $g_hGui, $g_iListView, $g_hImageList, $g_iMenuShowInExplorer, $g_iMenuCopyPath, $g_iBtnOk, $g_iBtnSettings, _
@@ -397,8 +400,10 @@ WEnd
 Func _OnEvent_Close()
 	; Первым делом закрыть приём: Launcher'ы дальше запустят новый Moth, а не отдадут задания этому
 	_CopyDataQueue_Close()
-	; Утилиту закрываем, только если она ещё работает: PID завершившейся мог достаться чужому процессу
-	If $g_iUtilPid Then ProcessClose($g_iUtilPid)
+	; Дескрипторы утилит в списке открыты: их PID не мог достаться чужому процессу
+	For $iPid In MapKeys($g_oUtilProcess)
+		ProcessClose($iPid)
+	Next
 	DirRemove($gc_sImgPath, 1)
 
 	If $g_bPulse Then AdlibUnRegister('_PulseSettingsButton')
@@ -1822,7 +1827,7 @@ Func _ConvertToJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $sForm
 	; Конвертация
 	If $sSourceFile <> '' Then $sPathFileJpg = _ConvertRun('magick', $sCommand, $sSourceFile, $sPathFileJpg)
 	; Оптимизация без потерь: JPEG оптимизирует jpegoptim, pingo остаётся для PNG
-	$sWinnerPath = _CompressionRun('jpegoptim', '{pathFile} --quiet --force -w ' & $g_iProcCount & _JpegStripArgs(_IccKeep($sPathFileJpg)) & ' --auto-mode', $sPathFileJpg, $FORMAT_JPG)
+	$sWinnerPath = _JpegoptimAuto('{pathFile} --quiet --force -w ' & $g_iProcCount & _JpegStripArgs(_IccKeep($sPathFileJpg)), $sPathFileJpg, $FORMAT_JPG)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 		Return
@@ -2031,6 +2036,30 @@ Func _IccKeep($sPathFile)
 EndFunc   ;==>_IccKeep
 
 
+; jpegoptim с выбором обычного или прогрессивного JPEG, что меньше: на фото прогрессивный
+; легче на 3-8%. --auto-mode кодирует оба по очереди, отдельными процессами они идут разом,
+; результат тот же байт в байт. Путь к меньшему, @error - не вышел ни один
+Func _JpegoptimAuto($sRunKey, $sPathFile, $sExtensionFile)
+	Local $sNormal = _CompressionStart('jpegoptim', $sRunKey & ' --all-normal', $sPathFile, $sExtensionFile)
+	Local $iError = @error, $iPid = @extended
+	Local $sProgressive = _CompressionRun('jpegoptim', $sRunKey & ' --all-progressive', $sPathFile, $sExtensionFile)
+	Local $nProgressive = @error ? 0 : FileGetSize($sProgressive)
+	If Not $iError Then
+		$sNormal = _CompressionWait('jpegoptim', $sNormal, $iPid)
+		$iError = @error
+	EndIf
+	Local $nNormal = $iError ? 0 : FileGetSize($sNormal)
+	If $nNormal = 0 And $nProgressive = 0 Then Return SetError(3, 0, $sProgressive)
+	; При равенстве - обычный
+	If $nNormal > 0 And ($nProgressive = 0 Or $nNormal <= $nProgressive) Then
+		FileDelete($sProgressive)
+		Return $sNormal
+	EndIf
+	FileDelete($sNormal)
+	Return $sProgressive
+EndFunc   ;==>_JpegoptimAuto
+
+
 ; Ключи jpegoptim: все метаданные прочь, профиль по решению _IccKeep
 Func _JpegStripArgs($bKeepIcc)
 	Return ' --strip-all' & ($bKeepIcc ? ' --keep-icc' : '')
@@ -2149,7 +2178,7 @@ EndFunc   ;==>_JpegAddJfifHeader
 ; Сжатие без потерь
 ; ============================================================
 
-; Два варианта без потерь, jpegoptim и ECT, побеждает меньший
+; Два варианта без потерь, jpegoptim и ECT, побеждает меньший. Прогрессивный - только jpegoptim
 Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sWinnerPath, $sRunKey, $sPathFileJpg
 	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
@@ -2159,27 +2188,41 @@ Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
 	Local $bKeepIcc = Not $bSaveExif And _IccKeep($sPathFile)
 
+	; Pingo и ECT с -progressive кладут DC цветности Cb и Cr в один скан. Photoshop такой
+	; JPEG с цветностью 4:2:0 показывает полосами и с чужими цветами (mozjpeg, issue 29).
+	; У jpegoptim DC каждой компоненты в своём скане, а ECT без -progressive пишет обычный JPEG
+	Local $bEct = Not $bToProgressive
+	Local $sRunKeyEct = '-9 -quiet --strict --mt-deflate --mt-file'
+	If Not $bSaveExif And Not $bKeepIcc Then $sRunKeyEct &= ' -strip'
+	$sRunKeyEct &= ' {pathFile}'
+	; У ECT один ключ -strip на все метаданные, профиль он тоже вырезает. Когда профиль
+	; нужен, ECT дожимает файл после jpegoptim, где кроме профиля уже ничего нет.
+	; Иначе варианты независимы: ECT работает, пока идёт jpegoptim
+	Local $sPath2 = '', $nSize2 = 0, $iError2 = 0, $iPid2 = 0
+	If $bEct And Not $bKeepIcc Then
+		$sPath2 = _CompressionStart('ect', $sRunKeyEct, $sPathFileJpg, $sExtensionFile)
+		$iError2 = @error
+		$iPid2 = @extended
+	EndIf
+
 	$sRunKey = '{pathFile} --quiet --force -w ' & $g_iProcCount
 	If Not $bSaveExif Then $sRunKey &= _JpegStripArgs($bKeepIcc)
-	; auto-mode без потерь выбирает обычный или прогрессивный JPEG, что меньше:
-	; на фото прогрессивный выходит на 3-8% легче
-	$sRunKey &= $bToProgressive ? ' --all-progressive' : ' --auto-mode'
-	Local $sPath1 = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+	Local $sPath1
+	If $bToProgressive Then
+		$sPath1 = _CompressionRun('jpegoptim', $sRunKey & ' --all-progressive', $sPathFileJpg, $sExtensionFile)
+	Else
+		$sPath1 = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
+	EndIf
 	Local $nSize1 = @error ? 0 : FileGetSize($sPath1)
 
-	; Pingo для JPEG не годится: метаданные он вырезает по-своему
-	$sRunKey = '-9 -quiet --strict --mt-deflate --mt-file'
-	If Not $bSaveExif And Not $bKeepIcc Then $sRunKey &= ' -strip'
-	If $bToProgressive Then $sRunKey &= ' -progressive'
-	$sRunKey &= ' {pathFile}'
-	; У ECT один ключ -strip на все метаданные, профиль он тоже вырезает. Когда профиль
-	; нужен, ECT дожимает файл после jpegoptim, где кроме профиля уже ничего нет
-	Local $sPath2 = '', $nSize2 = 0
-	If Not $bKeepIcc Then
-		$sPath2 = _CompressionRun('ect', $sRunKey, $sPathFileJpg, $sExtensionFile)
-		$nSize2 = @error ? 0 : FileGetSize($sPath2)
-	ElseIf $nSize1 > 0 Then
-		$sPath2 = _CompressionRun('ect', $sRunKey, $sPath1, $sExtensionFile)
+	If $bEct And Not $bKeepIcc Then
+		If Not $iError2 Then
+			$sPath2 = _CompressionWait('ect', $sPath2, $iPid2)
+			$iError2 = @error
+		EndIf
+		$nSize2 = $iError2 ? 0 : FileGetSize($sPath2)
+	ElseIf $bEct And $nSize1 > 0 Then
+		$sPath2 = _CompressionRun('ect', $sRunKeyEct, $sPath1, $sExtensionFile)
 		$nSize2 = @error ? 0 : FileGetSize($sPath2)
 	EndIf
 
@@ -2212,8 +2255,11 @@ Func _CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 
 	$sRunKey = '{pathFile} --quiet --force -w ' & $g_iProcCount
 	If Not $bSaveExif Then $sRunKey &= _JpegStripArgs(_IccKeep($sPathFile))
-	$sRunKey &= $bToProgressive ? ' --all-progressive' : ' --auto-mode'
-	$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+	If $bToProgressive Then
+		$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey & ' --all-progressive', $sPathFileJpg, $sExtensionFile)
+	Else
+		$sWinnerPath = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
+	EndIf
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 		Return
@@ -2562,7 +2608,11 @@ Func _CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 			; Для webp сравниваем два варианта сжатия и выбираем лучший.
 			; -q 100 кодирует цвет в 4:2:0: на фото это 41-48 дБ, а цветной текст скриншота
 			; размывается до ~29 дБ. Тогда он выбывает, и остаётся near-lossless 60 (~52 дБ)
+			; Варианты независимы: near-lossless идёт, пока работают первый и его проверка
 			Local $sMeta = _WebpMetaArgs(_IccKeep($sPathFile))
+			Local $sPath2 = _CompressionStart('cwebp', '-near_lossless 60 -mt' & $sMeta & ' {pathFile} -o {pathFile}', $sPathFile, $sExtensionFile)
+			Local $iError2 = @error, $iPid2 = @extended
+
 			Local $sPath1 = _CompressionRun('cwebp', '-q 100 -mt' & $sMeta & ' {pathFile} -o {pathFile}', $sPathFile, $sExtensionFile)
 			Local $nSize1 = @error ? 0 : FileGetSize($sPath1)
 			If $nSize1 > 0 And _PsnrDb($sPathFile, $sPath1) < 36 Then
@@ -2570,8 +2620,11 @@ Func _CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 				$nSize1 = 0
 			EndIf
 
-			Local $sPath2 = _CompressionRun('cwebp', '-near_lossless 60 -mt' & $sMeta & ' {pathFile} -o {pathFile}', $sPathFile, $sExtensionFile)
-			Local $nSize2 = @error ? 0 : FileGetSize($sPath2)
+			If Not $iError2 Then
+				$sPath2 = _CompressionWait('cwebp', $sPath2, $iPid2)
+				$iError2 = @error
+			EndIf
+			Local $nSize2 = $iError2 ? 0 : FileGetSize($sPath2)
 
 			; Выбираем лучший результат (меньший размер)
 			If $nSize1 > 0 And ($nSize2 = 0 Or $nSize1 < $nSize2) Then
@@ -2585,6 +2638,8 @@ Func _CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 				_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 				Return
 			EndIf
+			; Сбой одного варианта - не ошибка файла, а проверка ниже смотрит @error
+			SetError(0)
 
 	EndSwitch
 
@@ -2641,8 +2696,11 @@ EndFunc   ;==>_CompressionForWeb
 
 
 Func _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
-	; PID в имени исключает коллизию, если запущено два экземпляра Moth
-	Return $gc_sImgPath & '\' & $sUtilsName & @AutoItPID & '_' & @HOUR & @MIN & @SEC & @MSEC & '.' & $sExtensionFile
+	; PID в имени исключает коллизию, если запущено два экземпляра Moth. Счётчик - если
+	; одна утилита запущена дважды в ту же миллисекунду: варианты сжатия идут разом
+	Local Static $iSeq = 0
+	$iSeq += 1
+	Return $gc_sImgPath & '\' & $sUtilsName & @AutoItPID & '_' & @HOUR & @MIN & @SEC & @MSEC & '_' & $iSeq & '.' & $sExtensionFile
 EndFunc   ;==>_GetTempPathFileForCompression
 
 
@@ -2653,9 +2711,18 @@ EndFunc   ;==>_GetTempPathFileForCompression
 ; Утилита правит копию $sPathFile на месте: {pathFile} в ключах - путь копии.
 ; Путь копии возвращается и при ошибке (@error 1 - копия, 2 - запуск, 3 - файла нет)
 Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
-	Local $sPathCompressFile, $iPid
+	Local $sPathCompressFile = _CompressionStart($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
+	Local $iError = @error, $iPid = @extended
+	If $iError Then Return SetError($iError, 0, $sPathCompressFile)
+	$sPathCompressFile = _CompressionWait($sUtilsName, $sPathCompressFile, $iPid)
+	Return SetError(@error, 0, $sPathCompressFile)
+EndFunc   ;==>_CompressionRun
 
-	$sPathCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
+
+; Начало _CompressionRun: копия и запуск без ожидания, @extended - PID утилиты.
+; Так независимые варианты сжатия одного файла идут разом. Конец - _CompressionWait
+Func _CompressionStart($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
+	Local $sPathCompressFile = _GetTempPathFileForCompression($sUtilsName, $sExtensionFile)
 	$sUtilsKey = StringReplace($sUtilsKey, '{pathFile}', '"' & $sPathCompressFile & '"', 0)
 	_AddLogLine('_CompressionRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
 
@@ -2664,21 +2731,21 @@ Func _CompressionRun($sUtilsName, $sUtilsKey, $sPathFile, $sExtensionFile)
 		Return SetError(1, 0, $sPathCompressFile)
 	EndIf
 
-	$iPid = Run('"' & @ScriptDir & '\apps\' & $sUtilsName & '.exe" ' & $sUtilsKey, _GetFileDirPath($sPathFile), @SW_HIDE)
-	If $iPid = 0 Then
-		_AddLogLine('[!] Ошибка запуска ' & $sUtilsName & '.exe')
-		Return SetError(2, 0, $sPathCompressFile)
-	EndIf
+	Local $iPid = _RunUtil($sUtilsName, $sUtilsKey, _GetFileDirPath($sPathFile))
+	If @error Then Return SetError(2, 0, $sPathCompressFile)
+	Return SetExtended($iPid, $sPathCompressFile)
+EndFunc   ;==>_CompressionStart
 
+
+; Конец _CompressionRun: ждёт утилиту и проверяет, что копия на месте
+Func _CompressionWait($sUtilsName, $sPathCompressFile, $iPid)
 	_WaitProcess($iPid)
-
 	If Not FileExists($sPathCompressFile) Then
 		_AddLogLine('[!] Ошибка ' & $sUtilsName & '.exe, нет итогового файла ' & $sPathCompressFile)
 		Return SetError(3, 0, $sPathCompressFile)
 	EndIf
-
 	Return $sPathCompressFile
-EndFunc   ;==>_CompressionRun
+EndFunc   ;==>_CompressionWait
 
 
 ; Утилита читает $sPathFile и пишет $sPathFileOut. {sRGB.icc} - профиль sRGB из Apps
@@ -2687,11 +2754,8 @@ Func _ConvertRun($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
 	$sUtilsKey = StringReplace($sUtilsKey, '{pathFileOut}', '"' & $sPathFileOut & '"', 0)
 	$sUtilsKey = StringReplace($sUtilsKey, '{sRGB.icc}', '"' & @ScriptDir & '\apps\sRGB.icc"', 0)
 	_AddLogLine('_ConvertRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
-	Local $iPid = Run('"' & @ScriptDir & '\apps\' & $sUtilsName & '.exe" ' & $sUtilsKey, _GetFileDirPath($sPathFile), @SW_HIDE)
-	If $iPid = 0 Then
-		_AddLogLine('[!] Ошибка запуска ' & $sUtilsName & '.exe')
-		Return SetError(2, 0, $sPathFileOut)
-	EndIf
+	Local $iPid = _RunUtil($sUtilsName, $sUtilsKey, _GetFileDirPath($sPathFile))
+	If @error Then Return SetError(2, 0, $sPathFileOut)
 
 	_WaitProcess($iPid)
 
@@ -2704,20 +2768,52 @@ Func _ConvertRun($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
 EndFunc   ;==>_ConvertRun
 
 
-; Ждёт завершения утилиты, не блокируя окно. Ожидание по дескриптору процесса, а не
-; по PID: PID завершившегося процесса Windows может отдать другому, и цикл ждал бы чужой
-Func _WaitProcess($iPid)
-	Local Const $SYNCHRONIZE = 0x00100000, $WAIT_TIMEOUT = 258
+; Запускает утилиту из Apps и сразу берёт дескриптор её процесса ($g_oUtilProcess): пока
+; он открыт, PID не достанется чужому процессу, даже если утилиту ждут не сразу.
+; PID или @error - не запустилась
+Func _RunUtil($sUtilsName, $sUtilsKey, $sWorkDir)
+	Local Const $SYNCHRONIZE = 0x00100000
+	Local $iPid = Run('"' & @ScriptDir & '\apps\' & $sUtilsName & '.exe" ' & $sUtilsKey, $sWorkDir, @SW_HIDE)
+	If $iPid = 0 Then
+		_AddLogLine('[!] Ошибка запуска ' & $sUtilsName & '.exe')
+		Return SetError(1, 0, 0)
+	EndIf
+	; Нет дескриптора - утилита уже завершилась, ждать нечего
 	Local $hProcess = _WinAPI_OpenProcess($SYNCHRONIZE, False, $iPid)
-	If Not $hProcess Then Return ; уже завершилась
-	$g_iUtilPid = $iPid
+	If $hProcess Then $g_oUtilProcess[$iPid] = $hProcess
+	Return $iPid
+EndFunc   ;==>_RunUtil
+
+
+; Ждёт завершения утилиты, запущенной _RunUtil, не блокируя окно. Ожидание по дескриптору
+; процесса, а не по PID: PID завершившегося процесса Windows может отдать другому.
+; Ожидание просыпается сразу, как утилита вышла: Sleep(50) добавлял к каждому запуску
+; в среднем 25 мс, на мелких файлах это треть времени
+Func _WaitProcess($iPid)
+	Local Const $WAIT_TIMEOUT = 258, $QS_ALLINPUT = 0x04FF
+	If Not MapExists($g_oUtilProcess, $iPid) Then Return
+	Local $hProcess = $g_oUtilProcess[$iPid]
+	Local $tHandle = DllStructCreate('handle'), $aWait, $hStep = TimerInit()
+	DllStructSetData($tHandle, 1, $hProcess)
 	While _WinAPI_WaitForSingleObject($hProcess, 0) = $WAIT_TIMEOUT
-		_SetStepProcess(1)
+		; Прогресс ползёт по времени, а не по числу пробуждений
+		If TimerDiff($hStep) >= 50 Then
+			$hStep = TimerInit()
+			_SetStepProcess(1)
+		EndIf
 		_TakeTasks()
 		_UpdateGUI()
-		Sleep(50)
+		; До выхода утилиты, сообщения окну или 50 мс. Сообщение (1) разбирает Sleep:
+		; без этого ожидание вернулось бы сразу. Сбой ожидания - прежний опрос
+		$aWait = DllCall('user32.dll', 'dword', 'MsgWaitForMultipleObjects', 'dword', 1, 'struct*', $tHandle, _
+				'bool', False, 'dword', 50, 'dword', $QS_ALLINPUT)
+		If @error Then
+			Sleep(50)
+		ElseIf $aWait[0] <> 0 And $aWait[0] <> $WAIT_TIMEOUT Then
+			Sleep($aWait[0] = 1 ? 10 : 50)
+		EndIf
 	WEnd
-	$g_iUtilPid = 0
+	MapRemove($g_oUtilProcess, $iPid)
 	_WinAPI_CloseHandle($hProcess)
 EndFunc   ;==>_WaitProcess
 

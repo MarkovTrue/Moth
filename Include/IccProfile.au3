@@ -14,7 +14,7 @@
 ; и кривая яркости сравниваются с эталоном sRGB. Если хоть что-то не совпало
 ; или не распозналось, профиль считается не sRGB и остаётся.
 ;
-; _IccProfile_FromFile($sPath)  - профиль из JPEG (APP2) или WEBP (чанк ICCP)
+; _IccProfile_FromFile($sPath)  - профиль из JPEG (APP2) или WEBP (чанк ICCP), у PNG - есть ли он
 ; _IccProfile_IsSrgb($dIcc)     - True, если профиль по данным равен sRGB
 ; ============================================================
 
@@ -26,20 +26,28 @@ Global Const $__ICC_SRGB_XYZ[9] = [0.4361, 0.2225, 0.0139, 0.3851, 0.7169, 0.097
 
 
 ; Профиль из JPEG (сегменты APP2 ICC_PROFILE, собираются по номерам) или WEBP (чанк ICCP).
-; Возвращает Binary, пустой - профиля нет.
-; @error: 1 - файл не прочитан, 2 - не JPEG и не WEBP: профиль нужно искать иначе
+; Возвращает Binary, пустой - профиля нет. У PNG профиль сжат zlib: здесь только видно,
+; что его нет, тогда ImageMagick запускать незачем.
+; @error: 1 - файл не прочитан, 2 - не JPEG и не WEBP или PNG с профилем: его нужно искать иначе
 Func _IccProfile_FromFile($sPath)
 	Local $hFile = FileOpen($sPath, $FO_BINARY)
 	If $hFile = -1 Then Return SetError(1, 0, Binary(''))
-	Local $dData = FileRead($hFile)
-	FileClose($hFile)
-	If BinaryLen($dData) < 16 Then Return SetError(1, 0, Binary(''))
-
-	If __IccProfile_U16($dData, 0) = 0xFFD8 Then Return __IccProfile_FromJpeg($dData)
-	If BinaryToString(BinaryMid($dData, 1, 4)) = 'RIFF' And BinaryToString(BinaryMid($dData, 9, 4)) = 'WEBP' Then
-		Return __IccProfile_FromWebp($dData)
+	; Читаются только заголовки. Файл целиком в памяти копировал бы каждый BinaryMid
+	; и BinaryLen: на фото в 10 МБ это 2 мс за вызов и полсекунды на файл
+	Local $dHead = FileRead($hFile, 16), $dIcc = Binary(''), $iError = 0
+	If BinaryLen($dHead) < 16 Then
+		$iError = 1
+	ElseIf __IccProfile_U16($dHead, 0) = 0xFFD8 Then
+		$dIcc = __IccProfile_FromJpeg($hFile)
+	ElseIf BinaryToString(BinaryMid($dHead, 1, 4)) = 'RIFF' And BinaryToString(BinaryMid($dHead, 9, 4)) = 'WEBP' Then
+		$dIcc = __IccProfile_FromWebp($hFile)
+	ElseIf BinaryMid($dHead, 1, 8) = Binary('0x89504E470D0A1A0A') Then
+		If __IccProfile_PngMayHaveIcc($hFile) Then $iError = 2
+	Else
+		$iError = 2
 	EndIf
-	Return SetError(2, 0, Binary(''))
+	FileClose($hFile)
+	Return SetError($iError, 0, $dIcc)
 EndFunc   ;==>_IccProfile_FromFile
 
 
@@ -80,6 +88,8 @@ Func _IccProfile_IsSrgb($dIcc)
 	; Кривые яркости: 65 точек от 0 до 1 против формулы sRGB
 	Local $x, $y
 	For $j = 3 To 5
+		; Каналы обычно ссылаются на одну кривую: она проверяется один раз
+		If ($j > 3 And $aOff[$j] = $aOff[3]) Or ($j = 5 And $aOff[5] = $aOff[4]) Then ContinueLoop
 		For $i = 0 To 64
 			$x = $i / 64
 			$y = __IccProfile_Curve($dIcc, $aOff[$j], $x)
@@ -95,12 +105,15 @@ EndFunc   ;==>_IccProfile_IsSrgb
 ; Внутреннее
 ; ------------------------------------------------------------
 
-Func __IccProfile_FromJpeg($dData)
-	Local $iLen = BinaryLen($dData), $iPos = 2, $iMarker, $iSegLen
+; Сегменты по одному с диска: читаются маркер с длиной и данные только у APP2
+Func __IccProfile_FromJpeg($hFile)
+	Local $iPos = 2, $dHead, $dSeg, $iMarker, $iSegLen
 	Local $aParts[256], $iTotal = 0, $iFound = 0
-	While $iPos + 4 <= $iLen
-		If __IccProfile_U8($dData, $iPos) <> 0xFF Then ExitLoop
-		$iMarker = __IccProfile_U8($dData, $iPos + 1)
+	While 1
+		FileSetPos($hFile, $iPos, $FILE_BEGIN)
+		$dHead = FileRead($hFile, 4)
+		If BinaryLen($dHead) < 4 Or __IccProfile_U8($dHead, 0) <> 0xFF Then ExitLoop
+		$iMarker = __IccProfile_U8($dHead, 1)
 		If $iMarker = 0xFF Then ; заполнитель
 			$iPos += 1
 			ContinueLoop
@@ -111,15 +124,20 @@ Func __IccProfile_FromJpeg($dData)
 			$iPos += 2
 			ContinueLoop
 		EndIf
-		$iSegLen = __IccProfile_U16($dData, $iPos + 2)
-		If $iSegLen < 2 Or $iPos + 2 + $iSegLen > $iLen Then ExitLoop
+		$iSegLen = __IccProfile_U16($dHead, 2)
+		If $iSegLen < 2 Then ExitLoop
 		; APP2: "ICC_PROFILE\0", номер части, число частей, данные
-		If $iMarker = 0xE2 And $iSegLen > 16 And BinaryToString(BinaryMid($dData, $iPos + 5, 12)) = 'ICC_PROFILE' & Chr(0) Then
-			Local $iSeq = __IccProfile_U8($dData, $iPos + 16)
-			$iTotal = __IccProfile_U8($dData, $iPos + 17)
-			If $iSeq >= 1 Then
-				$aParts[$iSeq] = BinaryMid($dData, $iPos + 19, $iSegLen - 16)
-				$iFound += 1
+		If $iMarker = 0xE2 And $iSegLen > 16 Then
+			$dSeg = FileRead($hFile, $iSegLen - 2)
+			; Файл оборван посреди сегмента
+			If BinaryLen($dSeg) < $iSegLen - 2 Then ExitLoop
+			If BinaryToString(BinaryMid($dSeg, 1, 12)) = 'ICC_PROFILE' & Chr(0) Then
+				Local $iSeq = __IccProfile_U8($dSeg, 12)
+				$iTotal = __IccProfile_U8($dSeg, 13)
+				If $iSeq >= 1 Then
+					$aParts[$iSeq] = BinaryMid($dSeg, 15, $iSegLen - 16)
+					$iFound += 1
+				EndIf
 			EndIf
 		EndIf
 		$iPos += 2 + $iSegLen
@@ -136,15 +154,40 @@ Func __IccProfile_FromJpeg($dData)
 EndFunc   ;==>__IccProfile_FromJpeg
 
 
-Func __IccProfile_FromWebp($dData)
-	Local $iLen = BinaryLen($dData), $iPos = 12, $iSize
-	While $iPos + 8 <= $iLen
-		$iSize = __IccProfile_U32LE($dData, $iPos + 4)
-		If BinaryToString(BinaryMid($dData, $iPos + 1, 4)) = 'ICCP' Then Return BinaryMid($dData, $iPos + 9, $iSize)
+; Заголовки чанков по одному с диска, данные - только у ICCP
+Func __IccProfile_FromWebp($hFile)
+	Local $iPos = 12, $dHead, $iSize
+	While 1
+		FileSetPos($hFile, $iPos, $FILE_BEGIN)
+		$dHead = FileRead($hFile, 8)
+		If BinaryLen($dHead) < 8 Then ExitLoop
+		$iSize = __IccProfile_U32LE($dHead, 4)
+		If BinaryToString(BinaryMid($dHead, 1, 4)) = 'ICCP' Then
+			; FileRead с нулём прочитал бы файл до конца
+			If $iSize = 0 Then ExitLoop
+			Return FileRead($hFile, $iSize)
+		EndIf
 		$iPos += 8 + $iSize + Mod($iSize, 2)
 	WEnd
 	Return Binary('')
 EndFunc   ;==>__IccProfile_FromWebp
+
+
+; Есть ли в PNG чанк iCCP. По спецификации он стоит до картинки: обход кончается на IDAT.
+; Файл оборван раньше IDAT - решает ImageMagick
+Func __IccProfile_PngMayHaveIcc($hFile)
+	Local $iPos = 8, $dHead, $sType
+	While 1
+		FileSetPos($hFile, $iPos, $FILE_BEGIN)
+		$dHead = FileRead($hFile, 8)
+		If BinaryLen($dHead) < 8 Then Return True
+		$sType = BinaryToString(BinaryMid($dHead, 5, 4))
+		If $sType == 'iCCP' Then Return True
+		If $sType == 'IDAT' Then Return False
+		; Длина, тип, данные и CRC
+		$iPos += 12 + __IccProfile_U32($dHead, 0)
+	WEnd
+EndFunc   ;==>__IccProfile_PngMayHaveIcc
 
 
 ; Значение кривой TRC в точке $x (0..1). Типы curv (таблица или гамма) и para
