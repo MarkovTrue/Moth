@@ -94,9 +94,6 @@ Func _RemoveFromContextMenu()
 		_MothRegDelete('HKEY_CLASSES_ROOT\SystemFileAssociations\.' & $sExtension & '\shell\moth')
 	Next
 
-	; Ключи прежних версий: меню на все картинки и на Folder
-	_MothRegDelete('HKEY_CLASSES_ROOT\SystemFileAssociations\image\shell\moth')
-	_MothRegDelete('HKEY_CLASSES_ROOT\Folder\shell\moth')
 	_MothRegDelete('HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Directory\shell\moth')
 EndFunc   ;==>_RemoveFromContextMenu
 

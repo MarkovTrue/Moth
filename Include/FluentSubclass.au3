@@ -44,6 +44,30 @@ Func _FluentSubclass_Pass($iMsg, $pCallback)
 EndFunc   ;==>_FluentSubclass_Pass
 
 
+; Как _FluentSubclass_Pass, но в колбэк уходят сообщения от $iFirst до $iLast включительно
+Func _FluentSubclass_PassRange($iFirst, $iLast, $pCallback)
+	If Not @AutoItX64 Then Return 0
+	Local $pDef = __FluentSubclass_DefPtr()
+	If Not $pDef Then Return 0
+	Local $pCode = __FluentSubclass_Alloc(38)
+	If Not $pCode Then Return 0
+
+	; mov eax, edx / sub eax, $iFirst / cmp eax, $iLast - $iFirst / ja def / mov rax, callback / jmp rax
+	; def: mov rax, DefSubclassProc / jmp rax. Сравнение беззнаковое: меньше $iFirst - тоже мимо
+	Local $tCode = DllStructCreate('align 1;byte a[3];dword first;byte b;dword span;byte c[4];ptr cb;byte d[4];ptr def;byte e[2]', $pCode)
+	$tCode.a = Binary('0x89D02D')
+	$tCode.first = $iFirst
+	$tCode.b = 0x3D
+	$tCode.span = $iLast - $iFirst
+	$tCode.c = Binary('0x770C48B8')
+	$tCode.cb = $pCallback
+	$tCode.d = Binary('0xFFE048B8')
+	$tCode.def = $pDef
+	$tCode.e = Binary('0xFFE0')
+	Return __FluentSubclass_Flush($pCode, 38)
+EndFunc   ;==>_FluentSubclass_PassRange
+
+
 ; Процедура «курсор-рука»: на WM_SETCURSOR ставит руку, остальное в DefSubclassProc.
 ; Скрипт не участвует вовсе. Одна на процесс и не освобождается: окна с ней могут получать
 ; сообщения до самого конца процесса. Указатель для _WinAPI_SetWindowSubclass или 0

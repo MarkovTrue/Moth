@@ -107,10 +107,6 @@ Moth.ConvertToBmp=Convert to BMP
 Moth.Convert=Convert…
 Moth.ColorQuantization=Change palette…
 Moth.Resizer=Resize…
-; Name used in Moth.ini before 1.41
-Moth.CompressionLosslessJpegExif=Lossless, keep metadata
-Moth.CompressionLosslessJpegExif.JPG=Lossless, keep Exif
-Moth.CompressionLosslessJpegExif.JFIF=Lossless, keep Exif
 
 ; "Resize…" window. A preset: MenuTitle, %1 - its size ("50%", "1920x1080", "to width 1920")
 [Resizer]

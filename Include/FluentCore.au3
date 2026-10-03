@@ -73,6 +73,7 @@ Global $__g_sFluentIconDir = ""
 Global $__g_bFluentGdip = False, $__g_bFluentHover = False
 Global $__g_hFluentMeasureBmp = 0, $__g_hFluentMeasureGfx = 0
 Global $__g_hFluentCursorCB = 0
+Global $__g_hFluentReleaseCB = 0, $__g_pFluentReleaseProc = 0, $__g_bFluentReleaseNative = False
 Global $__g_oFluentFonts[], $__g_oFluentIcons[]
 ; Контрол под курсором на текущем такте опроса и кэш высоты строки шрифта окна
 Global $__g_iFluentHoverCtrl = 0, $__g_iFluentGdiLineH = 0
@@ -121,6 +122,12 @@ Func _FluentShutdown()
 		DllCallbackFree($__g_hFluentCursorCB)
 		$__g_hFluentCursorCB = 0
 	EndIf
+	; Сабклассы клика модули сняли в хуке 'shutdown'
+	If $__g_bFluentReleaseNative Then _FluentSubclass_Free($__g_pFluentReleaseProc)
+	If $__g_hFluentReleaseCB Then DllCallbackFree($__g_hFluentReleaseCB)
+	$__g_hFluentReleaseCB = 0
+	$__g_pFluentReleaseProc = 0
+	$__g_bFluentReleaseNative = False
 	If $__g_hFluentMeasureGfx Then _GDIPlus_GraphicsDispose($__g_hFluentMeasureGfx)
 	If $__g_hFluentMeasureBmp Then _GDIPlus_BitmapDispose($__g_hFluentMeasureBmp)
 	$__g_hFluentMeasureGfx = 0
@@ -725,6 +732,20 @@ Func _FluentHandCursorRemove($iCtrl)
 EndFunc   ;==>_FluentHandCursorRemove
 
 
+; Клик по отпусканию, как у кнопки Windows. Pic с SS_NOTIFY шлёт STN_CLICKED уже на нажатие:
+; сабкласс нажатие глотает и захватывает мышь, а отпускание над контролом шлёт окну тот же
+; STN_CLICKED, и срабатывает обычный GUICtrlSetOnEvent. Увёл курсор и отпустил - клика нет.
+; Через AutoIt идут только WM_LBUTTONDOWN..WM_LBUTTONDBLCLK, фильтр машинный
+Func _FluentClickOnRelease($iCtrl)
+	_WinAPI_SetWindowSubclass(GUICtrlGetHandle($iCtrl), __FluentReleaseProcPtr(), 1, 0)
+EndFunc   ;==>_FluentClickOnRelease
+
+
+Func _FluentClickOnReleaseRemove($iCtrl)
+	_WinAPI_RemoveWindowSubclass(GUICtrlGetHandle($iCtrl), __FluentReleaseProcPtr(), 1)
+EndFunc   ;==>_FluentClickOnReleaseRemove
+
+
 ; ============================================================
 ; Внутреннее
 ; ============================================================
@@ -807,6 +828,43 @@ Func __FluentCursorProc($hWnd, $iMsg, $wParam, $lParam, $iId, $dwData)
 	EndIf
 	Return _FluentSubclass_DefProc($hWnd, $iMsg, $wParam, $lParam)
 EndFunc   ;==>__FluentCursorProc
+
+
+; Процедура сабкласса клика: машинный фильтр перед колбэком, на x86 - сам колбэк
+Func __FluentReleaseProcPtr()
+	If $__g_pFluentReleaseProc Then Return $__g_pFluentReleaseProc
+	If $__g_hFluentReleaseCB = 0 Then
+		$__g_hFluentReleaseCB = DllCallbackRegister("__FluentReleaseProc", "lresult", _
+				"hwnd;uint;wparam;lparam;uint_ptr;dword_ptr")
+	EndIf
+	Local $pCallback = DllCallbackGetPtr($__g_hFluentReleaseCB)
+	$__g_pFluentReleaseProc = _FluentSubclass_PassRange($WM_LBUTTONDOWN, $WM_LBUTTONDBLCLK, $pCallback)
+	$__g_bFluentReleaseNative = $__g_pFluentReleaseProc <> 0
+	If Not $__g_bFluentReleaseNative Then $__g_pFluentReleaseProc = $pCallback
+	Return $__g_pFluentReleaseProc
+EndFunc   ;==>__FluentReleaseProcPtr
+
+
+Func __FluentReleaseProc($hWnd, $iMsg, $wParam, $lParam, $iId, $dwData)
+	#forceref $iId, $dwData
+	Local Const $STN_CLICKED = 0
+	Switch $iMsg
+		Case $WM_LBUTTONDOWN, $WM_LBUTTONDBLCLK
+			_WinAPI_SetCapture($hWnd)
+			Return 0
+		Case $WM_LBUTTONUP
+			; Захват держит только нажатие на этом контроле: потерян (Alt+Tab) - клика нет
+			If _WinAPI_GetCapture() <> $hWnd Then Return 0
+			_WinAPI_ReleaseCapture()
+			; Координаты беззнаковые: левее и выше контрола они от 32768, больше ширины и высоты
+			Local $tRect = _WinAPI_GetClientRect($hWnd)
+			If BitAND($lParam, 0xFFFF) < $tRect.Right And BitAND(BitShift($lParam, 16), 0xFFFF) < $tRect.Bottom Then _
+					_WinAPI_PostMessage(_WinAPI_GetParent($hWnd), $WM_COMMAND, _
+					_WinAPI_MakeLong(_WinAPI_GetDlgCtrlID($hWnd), $STN_CLICKED), $hWnd)
+			Return 0
+	EndSwitch
+	Return _FluentSubclass_DefProc($hWnd, $iMsg, $wParam, $lParam)
+EndFunc   ;==>__FluentReleaseProc
 
 
 ; Копия картинки в один цвет: RGB зануляется матрицей и задаётся строкой

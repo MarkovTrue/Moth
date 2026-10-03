@@ -7,7 +7,7 @@
 ; FluentButton – кнопка со скруглённой рамкой
 ; ============================================================
 ; Вид рисуется в GDI+ и кладётся в Pic. Клик – штатное событие Pic: обработчик
-; вешается обычным GUICtrlSetOnEvent. Состояния кнопки менять только функциями
+; вешается обычным GUICtrlSetOnEvent. Срабатывает на отпускание, как у кнопки Windows. Состояния кнопки менять только функциями
 ; модуля: GUICtrlSetData на Pic грузит картинку из файла, а GUICtrlSetState
 ; не перерисовывает вид.
 ;
@@ -35,6 +35,7 @@ __FluentHookAdd('shutdown', '__FluentButton_Shutdown')
 Func _FluentButton_Create($sText, $sIcon, $iIconSize, $iX, $iY, $iW, $iH, $iKind = $FLUENTBUTTON_ICON)
 	Local $iCtrl = GUICtrlCreatePic("", $iX, $iY, $iW, $iH, $SS_NOTIFY)
 	_FluentHandCursor($iCtrl)
+	_FluentClickOnRelease($iCtrl)
 	_FluentDockFixed($iCtrl)
 
 	Local $iIndex = __FluentButton_FreeSlot()
@@ -115,6 +116,7 @@ Func _FluentButton_Delete($iCtrl)
 	Local $i = __FluentButton_IndexOf($iCtrl)
 	If $i < 0 Then Return
 	_FluentHandCursorRemove($iCtrl)
+	_FluentClickOnReleaseRemove($iCtrl)
 	GUICtrlDelete($iCtrl)
 	If $__g_aFluentButtons[$i][1] Then _WinAPI_DeleteObject($__g_aFluentButtons[$i][1])
 	$__g_aFluentButtons[$i][0] = 0
@@ -134,6 +136,7 @@ Func __FluentButton_Shutdown()
 	For $i = 0 To UBound($__g_aFluentButtons) - 1
 		If Not $__g_aFluentButtons[$i][0] Then ContinueLoop
 		_FluentHandCursorRemove($__g_aFluentButtons[$i][0])
+		_FluentClickOnReleaseRemove($__g_aFluentButtons[$i][0])
 		If $__g_aFluentButtons[$i][1] Then _WinAPI_DeleteObject($__g_aFluentButtons[$i][1])
 		$__g_aFluentButtons[$i][1] = 0
 	Next

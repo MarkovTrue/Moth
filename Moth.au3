@@ -129,6 +129,7 @@ Global Const $gc_iLvRowText    = 0xE0E0E0
 Global Const $gc_iLvRowSel     = 0x4D4D4D
 Global Const $gc_iLvGridLine   = 0x191919 ; сетка и рамка заголовка
 Global Const $gc_iLvRowBkAltLight = 0xF4F4F4 ; светлая тема: нечётные строки
+Global Const $gc_iLvGridLineLight = 0xE5E5E5 ; светлая тема: линия под заголовком, цвет системных разделителей
 
 ; Цвета строк и подвала по теме, RGB. Заполняет _SetPalette: размеры до сжатия и пропуски приглушены,
 ; уменьшение файла зелёное, рост оранжевый, ошибки красные
@@ -297,16 +298,16 @@ Func _SetTheme()
 
 		_GUICtrlListView_SetBkColor($g_iListView, $gc_iLvRowBk)
 		_GUICtrlListView_SetTextBkColor($g_iListView, $gc_iLvRowBk)
+	EndIf
 
-		; В скрипт пропускается только WM_NOTIFY: через колбэк AutoIt шёл бы и WM_PAINT списка,
-		; и быстрая прокрутка большого списка вешала окно (подробно в FluentSubclass.au3)
-		If $g_hLVCallback = 0 Then
-			$g_hLVHeader = _GUICtrlListView_GetHeader($g_iListView)
-			$g_hLVCallback = DllCallbackRegister("_LV_HeaderSubclass", "lresult", "hwnd;uint;wparam;lparam;uint_ptr;dword_ptr")
-			$g_pLVFilter = _FluentSubclass_Pass($WM_NOTIFY, DllCallbackGetPtr($g_hLVCallback))
-			If $g_pLVFilter Then _WinAPI_SetWindowSubclass(GUICtrlGetHandle($g_iListView), $g_pLVFilter, 1000, 0)
-			OnAutoItExitRegister("_LV_SubclassCleanup")
-		EndIf
+	; В скрипт пропускается только WM_NOTIFY: через колбэк AutoIt шёл бы и WM_PAINT списка,
+	; и быстрая прокрутка большого списка вешала окно (подробно в FluentSubclass.au3)
+	If $g_hLVCallback = 0 Then
+		$g_hLVHeader = _GUICtrlListView_GetHeader($g_iListView)
+		$g_hLVCallback = DllCallbackRegister("_LV_HeaderSubclass", "lresult", "hwnd;uint;wparam;lparam;uint_ptr;dword_ptr")
+		$g_pLVFilter = _FluentSubclass_Pass($WM_NOTIFY, DllCallbackGetPtr($g_hLVCallback))
+		If $g_pLVFilter Then _WinAPI_SetWindowSubclass(GUICtrlGetHandle($g_iListView), $g_pLVFilter, 1000, 0)
+		OnAutoItExitRegister("_LV_SubclassCleanup")
 	EndIf
 	For $iBack In $g_aListBack
 		GUICtrlSetBkColor($iBack, _IsDarkTheme() ? $gc_iLvRowBk : 0xFFFFFF)
@@ -504,6 +505,15 @@ Func _OnEvent_WM_NOTIFY($hWnd, $iMsg, $iwParam, $ilParam)
 				DllStructSetData(DllStructCreate("wchar[" & StringLen($sTip) + 1 & "]", DllStructGetData($tTip, "Text")), 1, $sTip)
 			EndIf
 
+		Case $LVN_ITEMCHANGED
+			; Клик по списку не всегда даёт $GUI_EVENT_PRIMARYDOWN: список сам ловит мышь.
+			; Выделение пользователя снимает подсветку прокрутки сразу, иначе видны две строки
+			Local $tChanged = DllStructCreate($tagNMLISTVIEW, $ilParam)
+			If BitAND(DllStructGetData($tChanged, "NewState"), $LVIS_SELECTED) And $g_bAutoScroll Then
+				$g_bAutoScroll = False
+				_AutoScrollToCurrent()
+			EndIf
+
 		Case $NM_RCLICK
 			$iIndex = DllStructGetData(DllStructCreate($tagNMITEMACTIVATE, $ilParam), "Index")
 			If $iIndex <> -1 Then _ShowContextMenu($g_iContextMenu)
@@ -689,13 +699,15 @@ Func _DrawSavedCell($hDC, $tRect)
 EndFunc   ;==>_DrawSavedCell
 
 
-; Сабкласс ListView: перехватывает NM_CUSTOMDRAW заголовка (SysHeader32) и рисует его в цветах палитры Fluent
+; Сабкласс ListView: перехватывает NM_CUSTOMDRAW заголовка (SysHeader32) и рисует его в цветах палитры Fluent.
+; Светлую шапку рисует система, но без линии снизу: её добавляет CDDS_POSTPAINT
 Func _LV_HeaderSubclass($hWnd, $iMsg, $iwParam, $ilParam, $iID, $pData)
 	#forceref $iwParam, $iID, $pData
-	If $iMsg = $WM_NOTIFY And _IsDarkTheme() Then
+	If $iMsg = $WM_NOTIFY Then
 		Local $tHdr = DllStructCreate($tagNMHDR, $ilParam)
 		If HWnd(DllStructGetData($tHdr, "hWndFrom")) = $g_hLVHeader And DllStructGetData($tHdr, "Code") = $NM_CUSTOMDRAW Then
 			Local $tCD = DllStructCreate($tagNMCUSTOMDRAWHDR, $ilParam)
+			If Not _IsDarkTheme() Then Return _LV_HeaderLightLine($hWnd, $iMsg, $iwParam, $ilParam, $tCD)
 			Switch DllStructGetData($tCD, "dwDrawStage")
 				Case $CDDS_PREPAINT
 					Return $CDRF_NOTIFYITEMDRAW
@@ -732,6 +744,23 @@ Func _LV_HeaderSubclass($hWnd, $iMsg, $iwParam, $ilParam, $iID, $pData)
 	EndIf
 	Return _WinAPI_DefSubclassProc($hWnd, $iMsg, $iwParam, $ilParam)
 EndFunc   ;==>_LV_HeaderSubclass
+
+
+; Светлая шапка: системная отрисовка, после неё линия снизу на всю ширину, как в тёмной
+Func _LV_HeaderLightLine($hWnd, $iMsg, $iwParam, $ilParam, $tCD)
+	Local $iResult = _WinAPI_DefSubclassProc($hWnd, $iMsg, $iwParam, $ilParam)
+	Switch DllStructGetData($tCD, "dwDrawStage")
+		Case $CDDS_PREPAINT
+			Return BitOR($iResult, $CDRF_NOTIFYPOSTPAINT)
+		Case $CDDS_POSTPAINT
+			Local $hDC = DllStructGetData($tCD, "hdc")
+			Local $tRect = _WinAPI_GetClientRect($g_hLVHeader)
+			_WinAPI_SelectObject($hDC, _WinAPI_GetStockObject($DC_PEN))
+			_WinAPI_SetDCPenColor($hDC, $gc_iLvGridLineLight)
+			_WinAPI_DrawLine($hDC, $tRect.Left, $tRect.Bottom - 1, $tRect.Right, $tRect.Bottom - 1)
+	EndSwitch
+	Return $iResult
+EndFunc   ;==>_LV_HeaderLightLine
 
 
 Func _LV_SubclassCleanup()
@@ -889,7 +918,7 @@ Func _CompressFile()
 					Case Else
 						If StringInStr($sActionCommand, 'cq') Then ; изменение палитры, например cq256
 							_ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-						ElseIf StringLeft($sActionCommand, 3) = 'per' Then ; percent_50_0, старый формат per50
+						ElseIf StringLeft($sActionCommand, 8) = 'percent_' Then ; percent_50_0
 							_ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 						ElseIf StringInStr($sActionCommand, 'resize') Then ; resize1000x1000x0
 							_ResizePixel($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
@@ -986,17 +1015,20 @@ Func _DrawInfo()
 	If $g_iInfoState Then
 		Local $bDone = $g_iInfoState = 2
 		Local $hFont = _FluentFont(), $hSemi = _FluentFont(0, True)
-		_FluentDrawIcon($hGfx, $bDone ? 'StatusDone' : 'StatusWork', 14, $bDone ? $g_iClrGood : $g_iClrMuted, 1, Int(($nH - 14) / 2))
+		; Итог сжатия вырос - оранжевый, как и сама разница
+		Local $iClrDone = $g_iAllWinnerSize > $g_iAllFileSize ? $g_iClrGrow : $g_iClrGood
+		_FluentDrawIcon($hGfx, $bDone ? 'StatusDone' : 'StatusWork', 14, $bDone ? $iClrDone : $g_iClrMuted, 1, Int(($nH - 14) / 2))
 		Local $nX = 19
 		$nX = _InfoText($hGfx, $bDone ? _Lang('Main', 'Complete', 'Done') : _Lang('Main', 'Progress', 'In progress'), _
 				$nX, $nH, $hFont, $g_iClrText)
 		$nX = _InfoText($hGfx, $g_iFileIndex & ' / ' & $g_aFileList[0][0], $nX, $nH, $hSemi, $g_iClrText)
 
-		Local $sSavedSize = _GetFileSizeStr($g_iAllFileSize - $g_iAllWinnerSize)
+		; Со знаком, как в таблице: после сжатия палитрой файлы бывают и больше
+		Local $sSavedSize = _GetCompressingSize($g_iAllWinnerSize, $g_iAllFileSize)
 		If $sSavedSize <> '' Then
 			$nX = _InfoDot($hGfx, $nX, $nH)
 			$nX = _InfoText($hGfx, _Lang('Main', 'Saved', 'Saved'), $nX, $nH, $hFont, $g_iClrText)
-			$nX = _InfoText($hGfx, '-' & $sSavedSize, $nX, $nH, $hSemi, $g_iClrGood)
+			$nX = _InfoText($hGfx, $sSavedSize, $nX, $nH, $hSemi, $iClrDone)
 			$nX = _InfoText($hGfx, '(' & _GetCompressingPercent($g_iAllWinnerSize, $g_iAllFileSize) & ')', _
 					$nX, $nH, $hFont, $g_iClrMuted)
 		EndIf
@@ -1260,7 +1292,7 @@ Func _GetTaskIconIndex($sActionName)
 	Local $iIndex = -1, $hIcon = 0
 	Local $sIcon = _ActionRead($sActionName, 'Icon')
 	If $sIcon <> '' Then
-		Local $sPath = _GetThemePath() & '\' & _ThemeIconName($sIcon)
+		Local $sPath = _GetThemePath() & '\' & $sIcon
 		If FileExists($sPath) Then
 			$hIcon = _WinAPI_LoadImage(0, $sPath, $IMAGE_ICON, 16, 16, $LR_LOADFROMFILE)
 		Else
@@ -1628,9 +1660,6 @@ Func _ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	If $aLineSplit[0] = 3 Then
 		$sPercent = $aLineSplit[2]
 		$sFilter = $aLineSplit[3]
-	ElseIf StringRegExp($sActionCommand, '^per\d+$') Then
-		; Формат 1.36 и раньше: per50, фильтр по умолчанию
-		$sPercent = _GetNumberFromString($sActionCommand)
 	Else
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_SKIPPED)
 		Return

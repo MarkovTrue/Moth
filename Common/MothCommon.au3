@@ -158,7 +158,7 @@ Func _GetExtensionListExpanded()
 EndFunc   ;==>_GetExtensionListExpanded
 
 
-; Тема окон Moth. Пока её не выбрали в настройках (пусто или System из ini до 1.40),
+; Тема окон Moth. Пока её не выбрали в настройках (пусто),
 ; окна следуют режиму приложений Windows
 Func _IsDarkTheme()
 	Local $sTheme = _IniString_Read($gc_sMothIni, 'Config', 'ThemeGUI')
@@ -177,19 +177,6 @@ EndFunc   ;==>_GetThemePath
 Func _GetIconPath()
 	Return @ScriptDir & '\Themes\' & ($gc_bRegDarkTheme ? 'Dark' : 'Light')
 EndFunc   ;==>_GetIconPath
-
-
-; Имя файла иконки темы из Icon= в Moth.ini. Старое имя (lossless_exif.ico, до 1.40) даёт
-; новое (LosslessExif.ico): рабочий ini переписывать не нужно. Иконку из системы
-; (*.jpg, файл с индексом) не трогает
-Func _ThemeIconName($sIcon)
-	If StringRight($sIcon, 4) <> '.ico' Or StringInStr($sIcon, '\') Then Return $sIcon
-	Local $sName = ''
-	For $sPart In StringSplit(StringTrimRight($sIcon, 4), '_', $STR_NOCOUNT)
-		$sName &= StringUpper(StringLeft($sPart, 1)) & StringMid($sPart, 2)
-	Next
-	Return $sName & '.ico'
-EndFunc   ;==>_ThemeIconName
 
 
 Func _GetFilterNameByIndx($nIndx)

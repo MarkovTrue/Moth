@@ -18,10 +18,8 @@ Global Const $gc_aResizeFilterGroups = [0, 2, 4]
 ; Пределы поля размера: проценты и стороны в точках
 Global Const $gc_iResizePercentMax = 1000, $gc_iResizeSideMax = 40000
 
-; Окно размеров: быстрый выбор процентов и стандартные разрешения [ширина, высота]
-; (Full HD и 2K). В подписи пресета разрешение - числами, как у любого другого
+; Окно размеров: быстрый выбор процентов
 Global Const $gc_aResizeQuickPercents = [10, 25, 50, 75, 150, 200]
-Global Const $gc_aResizeQuickSizes[2][2] = [[1920, 1080], [2560, 1440]]
 
 
 ; Команда из имени Moth.Resize.<команда>, '' - имя не такое или команда кривая

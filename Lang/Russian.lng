@@ -107,10 +107,6 @@ Moth.ConvertToBmp=Конвертировать в BMP
 Moth.Convert=Конвертировать…
 Moth.ColorQuantization=Изменить палитру…
 Moth.Resizer=Изменить размер…
-; Имя из Moth.ini до 1.41
-Moth.CompressionLosslessJpegExif=Без потерь, сохранить Meta
-Moth.CompressionLosslessJpegExif.JPG=Без потерь, сохранить Exif
-Moth.CompressionLosslessJpegExif.JFIF=Без потерь, сохранить Exif
 
 ; Окно «Изменить размер…». Пресет: MenuTitle, %1 - его размер («50%», «1920x1080», «по ширине 1920»)
 [Resizer]

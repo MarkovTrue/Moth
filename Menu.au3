@@ -233,8 +233,8 @@ Func _ActionIcon($sAction)
 	Local $aIcon[2] = ['', 0]
 	Local $sIcon = _ActionRead($sAction, 'Icon')
 	If $sIcon = '' Then Return $aIcon
-	If FileExists(_GetIconPath() & '\' & _ThemeIconName($sIcon)) Then
-		$aIcon[0] = _GetIconPath() & '\' & _ThemeIconName($sIcon)
+	If FileExists(_GetIconPath() & '\' & $sIcon) Then
+		$aIcon[0] = _GetIconPath() & '\' & $sIcon
 	Else
 		Local $aInfo = _ExplorerIcon_Get($sIcon)
 		$aIcon[0] = $aInfo[1]
@@ -300,24 +300,6 @@ EndFunc   ;==>_MenuPinsUpdate
 ; ввод в проценты очищает точки, и наоборот. Пустая сторона - по пропорции. Пустые поля
 ; подсказывают, сколько выйдет у первого файла выделения.
 
-; Список окна по старому Moth.ini: закреплённые по алфавиту, как в меню проводника,
-; за ними стандартные разрешения ($gc_aResizeQuickSizes, вписать), кроме убранных
-; крестиком ($sHidden). Закреплённое разрешение стоит среди закреплённых
-Func _ResizerOrder($aActions, $sPinned, $sHidden = '')
-	Local $aList[0], $sAction
-	For $sAction In $aActions
-		If StringInStr($sPinned, '|' & $sAction & '|') Then _ListAppend($aList, $sAction)
-	Next
-	$aList = _MothMenu_SortByTitle($aList)
-	For $i = 0 To UBound($gc_aResizeQuickSizes) - 1
-		$sAction = $gc_sResizeActionPrefix & _ResizeCommand(0, $gc_aResizeQuickSizes[$i][0], $gc_aResizeQuickSizes[$i][1], 0, 0)
-		If StringInStr($sPinned, '|' & $sAction & '|') Or StringInStr('|' & $sHidden & '|', '|' & $sAction & '|') Then ContinueLoop
-		_ListAppend($aList, $sAction)
-	Next
-	Return $aList
-EndFunc   ;==>_ResizerOrder
-
-
 ; Черта над живой строкой: пресеты отдельно от собираемого пункта. У пустого списка
 ; черта перед первой строкой не видна, первый добавленный пресет её сдвинет
 Func _ResizerDividers()
@@ -332,34 +314,13 @@ Func _ListAppend(ByRef $aList, $sItem)
 EndFunc   ;==>_ListAppend
 
 
-; Список, закреплённые и последний применённый размер. Ini без Last - старого вида,
-; он переводится на новый (_ResizerMigrate)
+; Список, закреплённые и последний применённый размер
 Func _ResizerLoad()
-	Local $sIni = $gc_sMothIni
-	If _IniString_Read($sIni, $g_sPopup, 'Last', '|') == '|' Then $sIni = _ResizerMigrate()
-	$g_sPinned = '|' & _MothMenu_PinnedRead($sIni, $g_sPopup, $g_sFormat) & '|'
-	$g_aActions = _ResizerListRead($sIni)
-	$g_sResizeAction = _IniString_Read($sIni, $g_sPopup, 'Last')
+	$g_sPinned = '|' & _MothMenu_PinnedRead($gc_sMothIni, $g_sPopup, $g_sFormat) & '|'
+	$g_aActions = _ResizerListRead($gc_sMothIni)
+	$g_sResizeAction = _IniString_Read($gc_sMothIni, $g_sPopup, 'Last')
 	If _ResizeActionCommand($g_sResizeAction) = '' Then $g_sResizeAction = ''
 EndFunc   ;==>_ResizerLoad
-
-
-; Старый вид: первым в Popup - последний применённый размер, за ним закреплённые
-; и недавние, окно показывало список _ResizerOrder. Новый: Popup - список окна, последний
-; применённый - в Last, Hidden не нужен. Порядок закреплённых тот же, меню проводника
-; не трогается. Возвращает новый ini
-Func _ResizerMigrate()
-	Local $sIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini')
-	If _IniString_Read($sIni, $g_sPopup, 'Last', '|') <> '|' Then Return $sIni
-	Local $aOld = _ResizerListRead($sIni)
-	Local $aList = _ResizerOrder($aOld, '|' & _IniString_Read($sIni, $g_sPopup, 'Pinned') & '|', _
-			_IniString_Read($sIni, $g_sPopup, 'Hidden'))
-	_IniString_Write($sIni, $g_sPopup, 'Popup', _ResizerJoin($aList))
-	_IniString_Write($sIni, $g_sPopup, 'Last', UBound($aOld) ? $aOld[0] : '')
-	_IniString_Delete($sIni, $g_sPopup, 'Hidden')
-	_ResizerSave($sIni)
-	Return $sIni
-EndFunc   ;==>_ResizerMigrate
 
 
 ; Пресеты из Popup по порядку, без повторов и чужих действий

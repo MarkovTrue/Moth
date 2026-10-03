@@ -8,7 +8,7 @@
 ; ============================================================
 ; Флажок в цветах палитры: вид рисуется в GDI+ и кладётся в Pic, как у кнопок.
 ; Штатный флажок под тему – FluentNativeButton. Включённый – заливка акцентом и белая птичка.
-; Клик по квадрату и по подписи переключает флажок, после чего зовётся
+; Клик по квадрату и по подписи переключает флажок на отпускание, после чего зовётся
 ; обработчик смены. Состояние менять только функциями модуля.
 ; Подпись с фигурными скобками рисует клавиши: «по {SHIFT} + Правый клик», см. _FluentTextKeys.
 ;
@@ -34,6 +34,7 @@ Func _FluentCheck_Create($sText, $iX, $iY, $iW = -1, $iH = 20, $bChecked = False
 	Local $iCtrl = GUICtrlCreatePic("", $iX, $iY, $iW, $iH, $SS_NOTIFY)
 	GUICtrlSetOnEvent($iCtrl, "__FluentCheck_OnClick")
 	_FluentHandCursor($iCtrl)
+	_FluentClickOnRelease($iCtrl)
 	_FluentDockFixed($iCtrl)
 
 	Local $iIndex = __FluentCheck_FreeSlot()
@@ -115,6 +116,7 @@ Func _FluentCheck_Delete($iCtrl)
 	Local $i = __FluentCheck_IndexOf($iCtrl)
 	If $i < 0 Then Return
 	_FluentHandCursorRemove($iCtrl)
+	_FluentClickOnReleaseRemove($iCtrl)
 	GUICtrlDelete($iCtrl)
 	If $__g_aFluentChecks[$i][1] Then _WinAPI_DeleteObject($__g_aFluentChecks[$i][1])
 	$__g_aFluentChecks[$i][0] = 0
@@ -134,6 +136,7 @@ Func __FluentCheck_Shutdown()
 	For $i = 0 To UBound($__g_aFluentChecks) - 1
 		If Not $__g_aFluentChecks[$i][0] Then ContinueLoop
 		_FluentHandCursorRemove($__g_aFluentChecks[$i][0])
+		_FluentClickOnReleaseRemove($__g_aFluentChecks[$i][0])
 		If $__g_aFluentChecks[$i][1] Then _WinAPI_DeleteObject($__g_aFluentChecks[$i][1])
 		$__g_aFluentChecks[$i][1] = 0
 	Next

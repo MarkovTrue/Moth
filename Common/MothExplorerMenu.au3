@@ -30,7 +30,7 @@ EndFunc   ;==>_MothMenu_WriteActionKey
 Func _MothMenu_WriteActionIcon($sKey, $sActionName)
 	Local $sActionIcon = _ActionRead($sActionName, 'Icon')
 	If $sActionIcon = '' Then Return
-	Local $sActionIconPath = _GetIconPath() & '\' & _ThemeIconName($sActionIcon)
+	Local $sActionIconPath = _GetIconPath() & '\' & $sActionIcon
 	If FileExists($sActionIconPath) Then
 		_MothRegWrite($gc_sRegKey & $sKey, 'Icon', 'REG_SZ', $sActionIconPath)
 	Else
@@ -41,9 +41,8 @@ EndFunc   ;==>_MothMenu_WriteActionIcon
 
 
 ; Иконки пунктов догоняют режим приложений Windows: в реестре они записаны путями
-; одной из тем, и после смены режима путь меняется на другую тему. Путь до 1.40
-; (themes\dark\lossless_exif.ico) заодно получает новые имена папки и файла. Launcher
-; и Menu зовут это при каждом запуске, обход CommandStore – пара миллисекунд
+; одной из тем, и после смены режима путь меняется на другую тему. Launcher и Menu
+; зовут это при каждом запуске, обход CommandStore – пара миллисекунд
 Func _MothMenu_SyncIconTheme()
 	Local $i = 0, $sKey, $sIcon, $sNew, $bLocked = False
 	While True
@@ -54,7 +53,7 @@ Func _MothMenu_SyncIconTheme()
 		$sIcon = RegRead($gc_sRegKey & $sKey, 'Icon')
 		; Иконка темы - файл в Themes\<тема>\, иконки из системы не трогаются
 		If Not StringRegExp($sIcon, '(?i)\\themes\\(dark|light)\\[^\\]+$') Then ContinueLoop
-		$sNew = _GetIconPath() & '\' & _ThemeIconName(StringRegExpReplace($sIcon, '^.*\\', ''))
+		$sNew = _GetIconPath() & '\' & StringRegExpReplace($sIcon, '^.*\\', '')
 		If $sNew == $sIcon Then ContinueLoop
 		; Процессы выделения стартуют разом: переписывает один, мьютекс живёт до его выхода
 		If Not $bLocked Then
@@ -122,7 +121,7 @@ EndFunc   ;==>_MothMenu_PopupPinKey
 
 ; Отмеченные действия окна в меню группы форматов, 'A|B'. Ключ группы - как имя
 ; её секции Action: Pinned.PNG, Pinned.JPG.JPE.JPEG, Pinned.Folder. Нет ключа - общий Pinned:
-; так задан эталон и так было в прежних ini. Без общего нет ключа - нет и отметок
+; так эталон задаёт отметки по умолчанию. Без общего нет ключа - нет и отметок
 Func _MothMenu_PinnedRead($sIni, $sPopup, $sExtensions)
 	Local $sPinned = _IniString_Read($sIni, $sPopup, __MothMenu_PinnedKey($sExtensions), '|')
 	If $sPinned == '|' Then $sPinned = _IniString_Read($sIni, $sPopup, 'Pinned')
@@ -319,13 +318,10 @@ Func __MothMenu_InFormatMenu($sAction, $sExtensions)
 EndFunc   ;==>__MothMenu_InFormatMenu
 
 
-; Секция [Action.*] группы форматов. Группа могла вырасти: в Moth.ini до 1.40 была [Action.HEIC],
-; теперь [Action.HEIC.HEIF]. Нет секции группы - читается секция её первого расширения
+; Секция [Action.*] группы форматов: [Action.HEIC.HEIF], [Action.Folder]
 Func _MothMenu_FormatList($sExtensions)
 	If $sExtensions = 'folder' Then Return _IniString_ReadSection($gc_sMothIni, 'Action.Folder')
-	Local $aList = _IniString_ReadSection($gc_sMothIni, 'Action.' & StringUpper($sExtensions))
-	If $aList[0][0] > 0 Or Not StringInStr($sExtensions, '.') Then Return $aList
-	Return _IniString_ReadSection($gc_sMothIni, 'Action.' & StringUpper(StringLeft($sExtensions, StringInStr($sExtensions, '.') - 1)))
+	Return _IniString_ReadSection($gc_sMothIni, 'Action.' & StringUpper($sExtensions))
 EndFunc   ;==>_MothMenu_FormatList
 
 
