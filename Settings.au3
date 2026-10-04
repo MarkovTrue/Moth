@@ -162,7 +162,7 @@ Func _MainGUI()
 	; Фигурные скобки в подписи - клавиши, их рисует FluentCheck
 	Local $aChecks[4][4] = [ _
 			[_Lang('Settings', 'Integrate', 'Add to the Explorer context menu'), 0, _IsIntegrated(), 0], _
-			[_Lang('Settings', 'TopPosition', 'Show Moth at the top of the menu'), $gc_iIndent, _ConfigOn('ContextMenuTopPosition', 0), 0], _
+			[_Lang('Settings', 'TopPosition', 'Show Moth at the top of the list'), $gc_iIndent, _ConfigOn('ContextMenuTopPosition', 0), 0], _
 			[_Lang('Settings', 'Folders', 'Show in the folder menu'), $gc_iIndent, _ConfigOn('ContextMenuFolders', 1), 0], _
 			[_Lang('Settings', 'Extended', 'Show only on {SHIFT} + Right click'), $gc_iIndent, _ConfigOn('ContextMenuExtended', 0), 0]]
 

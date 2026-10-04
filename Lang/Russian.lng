@@ -53,7 +53,7 @@ ThemeLight=Светлая
 ThemeDark=Тёмная
 Integrate=Добавить в контекстное меню проводника
 Folders=Показывать в меню для папок
-TopPosition=Показывать Moth вверху меню
+TopPosition=Показывать Moth вверху списка
 ; В фигурных скобках - клавиши, рисуются кнопками
 Extended=Показывать только по {SHIFT} + Правый клик
 OpenIni=Moth.ini

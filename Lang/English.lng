@@ -53,7 +53,7 @@ ThemeLight=Light
 ThemeDark=Dark
 Integrate=Add to the Explorer context menu
 Folders=Show in the folder menu
-TopPosition=Show Moth at the top of the menu
+TopPosition=Show Moth at the top of the list
 ; Keys in curly braces are drawn as buttons
 Extended=Show only on {SHIFT} + Right click
 OpenIni=Moth.ini
