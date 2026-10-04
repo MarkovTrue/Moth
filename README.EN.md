@@ -118,9 +118,9 @@ Everything is already in the archive, in the `Apps` folder:
 
 After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 
-## ⚠️ Antivirus
+## Antivirus
 Moth is written in AutoIt, and some antivirus software may flag the exe files as suspicious.<br>
-This is a known false positive for programs compiled from AutoIt.
+This is a [known false positive](https://www.autoitscript.com/wiki/AutoIt_and_Malware) for programs compiled from AutoIt.
 
 ## 🤝 Support
 Bug reports and suggestions are welcome.
