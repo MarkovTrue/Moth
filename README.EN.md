@@ -24,16 +24,6 @@ The choice of actions may differ from format to format because of its features.
 * Conversion formats: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
 
 
-## Usage
-1. Unpack the archive to any folder, for example `D:\Portable\Moth`
-2. Run `Settings.exe`, tick "Add to the Explorer context menu" and press "OK"
-3. The `Moth` item appears in the Explorer context menu
-
-To remove Moth from the menu, untick the same box. If you move the Moth folder, open the settings and press "OK" again.
-
-![Settings](Preview/Settings.en.png)
-
-
 ## Formats and actions
 
 | Action | JPEG | JFIF | PNG | WEBP | JXL | AVIF | GIF | BMP |
@@ -70,6 +60,16 @@ Conversion to JPG, PNG and WEBP is in the menu by default, the other formats are
 When a GIF or WEBP animation is converted to a non-animated format, only the first frame is converted.
 
 Moth keeps the color profile when compressing and converting. Only an sRGB profile is removed, the image does not change without it.
+
+
+## Usage
+1. Unpack the archive to any folder, for example `D:\Portable\Moth`
+2. Run `Settings.exe`, tick "Add to the Explorer context menu" and press "OK"
+3. The `Moth` item appears in the Explorer context menu
+
+To remove Moth from the menu, untick the same box. If you move the Moth folder, open the settings and press "OK" again.
+
+![Settings](Preview/Settings.en.png)
 
 ## Menu windows
 ### Extended list
