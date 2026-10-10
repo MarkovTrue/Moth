@@ -66,9 +66,10 @@ EndFunc   ;==>_MothMenu_SyncIconTheme
 
 
 ; ============================================================
-; Окна выбора (Popup= в Moth.ini)
+; Окна выбора (Popup)
 ; ============================================================
-; Пункт с Popup открывает окно со списком действий (Menu.exe). Действия, отмеченные
+; Пункт с Popup открывает окно со списком действий (Menu.exe). Списки встроенных окон
+; задаёт код ($gc_aActionsBuiltin), своих - Moth.ini. Действия, отмеченные
 ; в окне, стоят в меню перед этим пунктом, своим блоком, по алфавиту. Отметки свои
 ; у каждой группы форматов (Pinned.PNG=), общий Pinned= - для групп без своего ключа.
 ; Это ключи <Popup>.Pin<N>.<формат>, свои у каждого формата. В SubCommands формата
@@ -86,7 +87,7 @@ Global Const $gc_iMothMenuItemsMax = 16
 
 ; Пункт открывает окно Menu.exe: список действий или окно размеров
 Func _MothMenu_IsPopup($sAction)
-	Return _IniString_Read($gc_sMothIni, $sAction, 'Popup') <> '' Or _MothMenu_IsResizer($sAction)
+	Return _ActionRead($sAction, 'Popup') <> '' Or _MothMenu_IsResizer($sAction)
 EndFunc   ;==>_MothMenu_IsPopup
 
 
@@ -95,13 +96,32 @@ Func _MothMenu_IsResizer($sAction)
 EndFunc   ;==>_MothMenu_IsResizer
 
 
+; Список окна 'A|B'. У окна размеров это пресеты в Moth.ini, их пополняет само окно:
+; читаются из $sIni. Остальные списки - _ActionRead
+Func _MothMenu_PopupList($sPopup, $sIni = Default)
+	If Not _MothMenu_IsResizer($sPopup) Then Return _ActionRead($sPopup, 'Popup')
+	If IsKeyword($sIni) Then $sIni = $gc_sMothIni
+	Return _IniString_Read($sIni, $sPopup, 'Popup')
+EndFunc   ;==>_MothMenu_PopupList
+
+
+; Пункт нужен в меню группы форматов: окно выбора - если в нём есть действие для формата,
+; остальное - если формат его умеет по таблице команд. Окно размеров и без пресетов нужно:
+; в нём задают свой размер. Папку каждый файл проверит сам Moth
+Func _MothMenu_ActionFits($sAction, $sExtensions)
+	If _MothMenu_IsPopup($sAction) And Not _MothMenu_IsResizer($sAction) Then _
+			Return UBound(_MothMenu_PopupActions($sAction, $sExtensions)) > 0
+	If $sExtensions = 'folder' Then Return True
+	Return _IsFormatSupported(StringRegExpReplace($sExtensions, '\..*', ''), $sAction)
+EndFunc   ;==>_MothMenu_ActionFits
+
+
 ; Действия окна, которые умеет формат. $sExtensions - группа форматов
 ; ('jpg.jpe.jpeg'), расширение файла или 'folder': папку каждый файл проверит сам Moth.
 ; $sIni - содержимое Moth.ini, если список в нём новее загруженного при старте
 Func _MothMenu_PopupActions($sPopup, $sExtensions, $sIni = Default)
-	If IsKeyword($sIni) Then $sIni = $gc_sMothIni
 	Local $aExt = StringSplit($sExtensions, '.', 2), $aActions[0], $sAction
-	For $sItem In StringSplit(_IniString_Read($sIni, $sPopup, 'Popup'), '|', 2)
+	For $sItem In StringSplit(_MothMenu_PopupList($sPopup, $sIni), '|', 2)
 		$sAction = StringStripWS($sItem, 3)
 		If StringLeft($sAction, 5) <> 'Moth.' Then ContinueLoop
 		If $sExtensions <> 'folder' And Not _IsFormatSupported($aExt[0], $sAction) Then ContinueLoop
@@ -184,7 +204,7 @@ Func _MothMenu_PinsUpdate($sIni = Default)
 			$sSub &= $aLayout[$i][0] & ';'
 			If $aLayout[$i][1] = '' Then ContinueLoop
 			_MothRegDelete($gc_sRegKey & $aLayout[$i][0])
-			_MothMenu_WriteActionKey($aLayout[$i][0], $aLayout[$i][1], _ActionTitle($aLayout[$i][1]))
+			_MothMenu_WriteActionKey($aLayout[$i][0], $aLayout[$i][1], _ActionTitle($aLayout[$i][1], $sExtensions))
 			$oKeep[$aLayout[$i][0]] = True
 		Next
 		For $sRoot In _MothMenu_Roots($sExtensions)
@@ -318,7 +338,7 @@ Func __MothMenu_InFormatMenu($sAction, $sExtensions)
 EndFunc   ;==>__MothMenu_InFormatMenu
 
 
-; Секция [Action.*] группы форматов: [Action.HEIC.HEIF], [Action.Folder]
+; Секция [Action.*] группы форматов: [Action.JPG.JPE.JPEG], [Action.Folder]
 Func _MothMenu_FormatList($sExtensions)
 	If $sExtensions = 'folder' Then Return _IniString_ReadSection($gc_sMothIni, 'Action.Folder')
 	Return _IniString_ReadSection($gc_sMothIni, 'Action.' & StringUpper($sExtensions))

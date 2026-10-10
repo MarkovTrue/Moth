@@ -24,20 +24,27 @@ Global Const _
 		$FORMAT_PNG = 'png', _
 		$FORMAT_WEBP = 'webp'
 
+; Версия всех exe Moth, менять здесь вместе с $gc_sAppVersion. Aut2Exe берёт pragma и из подключаемого файла
+#pragma compile(ProductVersion, 1.43)
+#pragma compile(FileVersion, 1.43)
+
 ; $gc_sMothIni - содержимое Moth.ini, а не путь
 Global Const _
-		$gc_sAppVersion = '1.42', _ ; сравнивается с тегом релиза на GitHub
+		$gc_sAppVersion = '1.43', _ ; сравнивается с тегом релиза на GitHub
 		$gc_sAppName = 'Moth ' & $gc_sAppVersion, _
 		$gc_sMothIni = _ReadFileUTF8(@ScriptDir & '\Moth.ini'), _
 		$gc_sTmpPath = @TempDir & '\Moth', _
 		$gc_sImgPath = @TempDir & '\Moth\images', _
 		$gc_bRegDarkTheme = _RegAppsUseDarkTheme()
 
+; Группы форматов. Форматы группы умеют одно и то же: у группы одно меню проводника и одна
+; секция [Action.*]. HEIC и HEIF порознь: они конвертируются друг в друга
 Global Const $gc_aExtensionWhiteList = [ _
 		$FORMAT_AVIF, _
 		$FORMAT_BMP, _
 		$FORMAT_GIF, _
-		$FORMAT_HEIC & '.' & $FORMAT_HEIF, _
+		$FORMAT_HEIC, _
+		$FORMAT_HEIF, _
 		$FORMAT_JFIF, _
 		$FORMAT_JPG & '.' & $FORMAT_JPE & '.' & $FORMAT_JPEG, _
 		$FORMAT_JXL, _
@@ -45,11 +52,8 @@ Global Const $gc_aExtensionWhiteList = [ _
 		$FORMAT_WEBP]
 
 ; Что с чем работает. Чего здесь нет, того формат не умеет или в этом нет смысла:
-; AVIF и HEIC без потерь не пережимаются (утилиты меняют пиксели), у BMP нет сжатия
-; с потерями. HEIC пишет только конвертация: heif-enc кодирует лишь с потерями.
-; HEIF - тот же HEIC под другим расширением, поэтому в HEIC он не конвертируется.
 ; Палитра только там, где её можно сохранить без потерь: у JPEG и AVIF шум дизеринга
-; раздувает файл, а в GIF и так не больше 256 цветов.
+; раздувает файл. У GIF только палитра меньше 256 цветов: больше в нём и так не бывает.
 ; Метаданные без потерь - у форматов, где они бывают: в GIF и BMP их нет.
 Global Const _
 		$SUPPORT_FORMATS_COMPRESSION_LOSSLESS = [$FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
@@ -57,6 +61,7 @@ Global Const _
 		$SUPPORT_FORMATS_COMPRESSION_LOSSY = [$FORMAT_AVIF, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_COMPRESSION_FOR_WEB = [$FORMAT_AVIF, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_COLOR_QUANTIZATION = [$FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_COLOR_QUANTIZATION_SMALL = [$FORMAT_GIF, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_RESIZE = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_PNG = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_WEBP = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG], _
@@ -64,9 +69,55 @@ Global Const _
 		$SUPPORT_FORMATS_CONVERT_TO_JFIF = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_JXL = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_AVIF = [$FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
-		$SUPPORT_FORMATS_CONVERT_TO_HEIC = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_CONVERT_TO_HEIC = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
+		$SUPPORT_FORMATS_CONVERT_TO_HEIF = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_GIF = [$FORMAT_AVIF, $FORMAT_BMP, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP], _
 		$SUPPORT_FORMATS_CONVERT_TO_BMP = [$FORMAT_AVIF, $FORMAT_GIF, $FORMAT_HEIC, $FORMAT_HEIF, $FORMAT_JFIF, $FORMAT_JPEG, $FORMAT_JPE, $FORMAT_JPG, $FORMAT_JXL, $FORMAT_PNG, $FORMAT_WEBP]
+
+; Команды действий (Command=). Только здесь решено, что команда делает и какие форматы берёт:
+; по таблице Moth выбирает обработку, меню проводника и окна - пункты формата.
+; Столбцы: имя, параметры после имени (регэксп), вид, форматы. Вид: compress - сжатие,
+; только у него итог «сэкономлено», анимированный WEBP оно не берёт; convert - конвертация
+; в формат из имени (toJpg - jpg), порядок строк - порядок окна «Конвертировать…»;
+; resize - ресайз; window - окно размеров. Строк у команды бывает несколько: берётся первая
+; подходящая. Так палитра меньше 256 цветов (cq1-cq255) есть и у GIF
+Global Const $gc_aCommands = [ _
+		['loss', '', 'compress', $SUPPORT_FORMATS_COMPRESSION_LOSSLESS], _
+		['lossy', '', 'compress', $SUPPORT_FORMATS_COMPRESSION_LOSSY], _
+		['web', '', 'compress', $SUPPORT_FORMATS_COMPRESSION_FOR_WEB], _
+		['cq', '(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d?)', 'compress', $SUPPORT_FORMATS_COLOR_QUANTIZATION_SMALL], _
+		['cq', '\d+', 'compress', $SUPPORT_FORMATS_COLOR_QUANTIZATION], _
+		['toJpg', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_JPG], _
+		['toJfif', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_JFIF], _
+		['toPng', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_PNG], _
+		['toWebp', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_WEBP], _
+		['toAvif', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_AVIF], _
+		['toHeic', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_HEIC], _
+		['toHeif', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_HEIF], _
+		['toJxl', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_JXL], _
+		['toGif', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_GIF], _
+		['toBmp', '', 'convert', $SUPPORT_FORMATS_CONVERT_TO_BMP], _
+		['percent', '_\d{1,4}_[0-5]', 'resize', $SUPPORT_FORMATS_RESIZE], _
+		['resize', '_\d{1,5}_\d{1,5}_[0-2]_[0-5](?:_1)?', 'resize', $SUPPORT_FORMATS_RESIZE], _
+		['resizer', '', 'window', $SUPPORT_FORMATS_RESIZE]]
+
+; Встроенные действия. Всё, от чего зависит работа, задано здесь. Moth.ini хранит для них порядок
+; в меню, отметки окон, пресеты окна размеров и ключи $gc_sActionIniKeys.
+; Столбцы: имя, Command, FilePostfix, Icon, SaveExif, Popup - список окна выбора.
+; Палитра Moth.ColorQuantization<N>, конвертация Moth.ConvertTo<формат> и пресеты
+; Moth.Resize.<команда> выводятся из имени
+Global Const $gc_aActionsBuiltin = [ _
+		['Moth.CompressionLossless', 'loss', '', 'Lossless.ico', '', ''], _
+		['Moth.CompressionLosslessMeta', 'loss', '', 'LosslessExif.ico', '1', ''], _
+		['Moth.CompressionLossy', 'lossy', '_lossy', 'Lossy.ico', '', ''], _
+		['Moth.CompressionWeb', 'web', '_web', 'Web.ico', '', ''], _
+		['Moth.Convert', '', '', 'Convert.ico', '', __ActionConvertList()], _
+		['Moth.ColorQuantization', '', '', 'Cq.ico', '', 'Moth.ColorQuantization64|Moth.ColorQuantization128|' & _
+				'Moth.ColorQuantization256|Moth.ColorQuantization512|Moth.ColorQuantization1024|Moth.ColorQuantization2048'], _
+		['Moth.Resizer', 'resizer', '', 'Resize.ico', '', '']]
+
+; Ключи, которые Moth.ini может задать встроенному действию: оформление и имя нового файла
+Global Const $gc_sActionIniKeys = '|ContextMenuTitle|ShortGuiTitle|FilePostfix|Icon|'
 
 
 ; Проверка обновлений: последний релиз GitHub, в котором лежит этот архив
@@ -102,46 +153,48 @@ EndFunc   ;==>_IsFormatSupported
 ; у форматов, где они бывают
 Func _GetActionSupportedFormats($sActionName)
 	Local $sCommand = _ActionRead($sActionName, 'Command')
-	If $sCommand = 'loss' And _ActionRead($sActionName, 'SaveExif') = 1 Then Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS_EXIF
+	If _CommandId($sCommand) = 'loss' And _ActionRead($sActionName, 'SaveExif') = 1 Then Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS_EXIF
 	Return _GetCommandSupportedFormats($sCommand)
 EndFunc   ;==>_GetActionSupportedFormats
 
 
-; Форматы по значению Command. Условия повторяют диспетчер _CompressFile в Moth.au3
+; Форматы по значению Command, Null - команды нет
 Func _GetCommandSupportedFormats($sCommand)
-	Switch $sCommand
-		Case 'loss'
-			Return $SUPPORT_FORMATS_COMPRESSION_LOSSLESS
-		Case 'lossy'
-			Return $SUPPORT_FORMATS_COMPRESSION_LOSSY
-		Case 'web'
-			Return $SUPPORT_FORMATS_COMPRESSION_FOR_WEB
-		Case 'toPng'
-			Return $SUPPORT_FORMATS_CONVERT_TO_PNG
-		Case 'toWebp'
-			Return $SUPPORT_FORMATS_CONVERT_TO_WEBP
-		Case 'toJpg'
-			Return $SUPPORT_FORMATS_CONVERT_TO_JPG
-		Case 'toJfif'
-			Return $SUPPORT_FORMATS_CONVERT_TO_JFIF
-		Case 'toJxl'
-			Return $SUPPORT_FORMATS_CONVERT_TO_JXL
-		Case 'toAvif'
-			Return $SUPPORT_FORMATS_CONVERT_TO_AVIF
-		Case 'toHeic'
-			Return $SUPPORT_FORMATS_CONVERT_TO_HEIC
-		Case 'toGif'
-			Return $SUPPORT_FORMATS_CONVERT_TO_GIF
-		Case 'toBmp'
-			Return $SUPPORT_FORMATS_CONVERT_TO_BMP
-	EndSwitch
-
-	If StringInStr($sCommand, 'cq') Then Return $SUPPORT_FORMATS_COLOR_QUANTIZATION
-	If StringLeft($sCommand, 3) = 'per' Then Return $SUPPORT_FORMATS_RESIZE
-	If StringInStr($sCommand, 'resize') Then Return $SUPPORT_FORMATS_RESIZE
-
-	Return Null
+	Local $iIndex = _CommandIndex($sCommand)
+	If $iIndex < 0 Then Return Null
+	Return $gc_aCommands[$iIndex][3]
 EndFunc   ;==>_GetCommandSupportedFormats
+
+
+; Строка команды в $gc_aCommands, -1 - команды нет. Регистр не важен, как у ключей ini
+Func _CommandIndex($sCommand)
+	For $i = 0 To UBound($gc_aCommands) - 1
+		If StringRegExp($sCommand, '(?i)^' & $gc_aCommands[$i][0] & $gc_aCommands[$i][1] & '$') Then Return $i
+	Next
+	Return -1
+EndFunc   ;==>_CommandIndex
+
+
+; Имя команды без параметров: 'cq256' - 'cq', 'percent_50_0' - 'percent', '' - команды нет
+Func _CommandId($sCommand)
+	Local $iIndex = _CommandIndex($sCommand)
+	Return $iIndex < 0 ? '' : $gc_aCommands[$iIndex][0]
+EndFunc   ;==>_CommandId
+
+
+; Вид команды: compress, convert, resize, window. '' - команды нет
+Func _CommandKind($sCommand)
+	Local $iIndex = _CommandIndex($sCommand)
+	Return $iIndex < 0 ? '' : $gc_aCommands[$iIndex][2]
+EndFunc   ;==>_CommandKind
+
+
+; Формат, в который конвертирует команда: 'toJpg' - 'jpg'. '' - команда не конвертация
+Func _CommandTarget($sCommand)
+	Local $iIndex = _CommandIndex($sCommand)
+	If $iIndex < 0 Or $gc_aCommands[$iIndex][2] <> 'convert' Then Return ''
+	Return StringLower(StringTrimLeft($gc_aCommands[$iIndex][0], 2))
+EndFunc   ;==>_CommandTarget
 
 
 ; Группа форматов расширения: 'jpeg' - 'jpg.jpe.jpeg', '' - формат не поддерживается
@@ -308,10 +361,10 @@ Func _Lang($sSection, $sKey, $sDefault = '')
 EndFunc   ;==>_Lang
 
 
-; Значение действия из Moth.ini. У встроенных действий секция не нужна: всё выводится
-; из имени, ключ в секции перекрывает выведенное. Пресет окна размеров (Moth.Resize.<команда>)
-; секцию не читает вовсе, так запущенный Moth понимает пресет, появившийся после его старта.
-; ShortGuiTitle по умолчанию - постфикс, без постфикса - команда
+; Значение действия. Встроенное задано кодом, из его секции в Moth.ini берутся только ключи
+; $gc_sActionIniKeys: они перекрывают заданное. Своё действие целиком в Moth.ini. Пресет окна
+; размеров (Moth.Resize.<команда>) секцию не читает вовсе, так запущенный Moth понимает пресет,
+; появившийся после его старта. ShortGuiTitle по умолчанию - постфикс, без постфикса - команда
 Func _ActionRead($sActionName, $sKey, $sDefault = '')
 	Local $sCommand = _ResizeActionCommand($sActionName)
 	If $sCommand <> '' Then
@@ -328,10 +381,12 @@ Func _ActionRead($sActionName, $sKey, $sDefault = '')
 		Return $sDefault
 	EndIf
 
-	; Default - ключа в секции нет, пустое значение - тоже значение
-	Local $sValue = _IniString_Read($gc_sMothIni, $sActionName, $sKey, Default)
-	If Not IsKeyword($sValue) Then Return $sValue
-	$sValue = __ActionBuiltin($sActionName, $sKey)
+	Local $sValue = __ActionBuiltin($sActionName, $sKey)
+	If @error Or StringInStr($gc_sActionIniKeys, '|' & $sKey & '|') Then
+		; Default - ключа в секции нет, пустое значение - тоже значение
+		Local $sIniValue = _IniString_Read($gc_sMothIni, $sActionName, $sKey, Default)
+		If Not IsKeyword($sIniValue) Then Return $sIniValue
+	EndIf
 	If $sValue = '' And $sKey = 'ShortGuiTitle' Then
 		$sValue = _ActionRead($sActionName, 'FilePostfix')
 		If $sValue = '' Then $sValue = _ActionRead($sActionName, 'Command')
@@ -340,8 +395,25 @@ Func _ActionRead($sActionName, $sKey, $sDefault = '')
 EndFunc   ;==>_ActionRead
 
 
-; Встроенные действия: палитра Moth.ColorQuantization<N> и конвертация Moth.ConvertTo<формат>
+; Значение встроенного действия, '' - ключ ему не задан. @error - действие не встроенное
 Func __ActionBuiltin($sActionName, $sKey)
+	For $i = 0 To UBound($gc_aActionsBuiltin) - 1
+		If $gc_aActionsBuiltin[$i][0] <> $sActionName Then ContinueLoop
+		Switch $sKey
+			Case 'Command'
+				Return $gc_aActionsBuiltin[$i][1]
+			Case 'FilePostfix'
+				Return $gc_aActionsBuiltin[$i][2]
+			Case 'Icon'
+				Return $gc_aActionsBuiltin[$i][3]
+			Case 'SaveExif'
+				Return $gc_aActionsBuiltin[$i][4]
+			Case 'Popup'
+				Return $gc_aActionsBuiltin[$i][5]
+		EndSwitch
+		Return ''
+	Next
+
 	Local $aMatch = StringRegExp($sActionName, '^Moth\.ColorQuantization(\d+)$', 1)
 	If Not @error Then
 		Switch $sKey
@@ -355,8 +427,9 @@ Func __ActionBuiltin($sActionName, $sKey)
 		Return ''
 	EndIf
 
-	$aMatch = StringRegExp($sActionName, '^Moth\.ConvertTo(Jpg|Jfif|Png|Webp|Jxl|Avif|Heic|Gif|Bmp)$', 1)
-	If Not @error Then
+	; Конвертация - в формат любой строки convert таблицы команд, имя с тем же регистром
+	$aMatch = StringRegExp($sActionName, '^Moth\.ConvertTo(\w+)$', 1)
+	If Not @error And _CommandTarget('to' & $aMatch[0]) <> '' And _CommandId('to' & $aMatch[0]) == 'to' & $aMatch[0] Then
 		Switch $sKey
 			Case 'Command'
 				Return 'to' & $aMatch[0]
@@ -366,9 +439,20 @@ Func __ActionBuiltin($sActionName, $sKey)
 			Case 'Icon'
 				Return 'Format' & ($aMatch[0] = 'Jpg' ? 'Jpeg' : $aMatch[0]) & '.ico'
 		EndSwitch
+		Return ''
 	EndIf
-	Return ''
+	Return SetError(1, 0, '')
 EndFunc   ;==>__ActionBuiltin
+
+
+; Список окна «Конвертировать…»: все строки convert таблицы команд по порядку
+Func __ActionConvertList()
+	Local $sList = ''
+	For $i = 0 To UBound($gc_aCommands) - 1
+		If $gc_aCommands[$i][2] = 'convert' Then $sList &= '|Moth.ConvertTo' & StringTrimLeft($gc_aCommands[$i][0], 2)
+	Next
+	Return StringTrimLeft($sList, 1)
+EndFunc   ;==>__ActionConvertList
 
 
 ; Заголовок действия в контекстном меню: ContextMenuTitle из Moth.ini перекрывает

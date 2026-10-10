@@ -22,11 +22,11 @@ Global Const $gc_iResizePercentMax = 1000, $gc_iResizeSideMax = 40000
 Global Const $gc_aResizeQuickPercents = [10, 25, 50, 75, 150, 200]
 
 
-; Команда из имени Moth.Resize.<команда>, '' - имя не такое или команда кривая
+; Команда из имени Moth.Resize.<команда>, '' - имя не такое или команда не ресайз
 Func _ResizeActionCommand($sActionName)
-	Local $aMatch = StringRegExp($sActionName, '^Moth\.Resize\.(percent_\d{1,4}_[0-5]|resize_\d{1,5}_\d{1,5}_[0-2]_[0-5](?:_1)?)$', 1)
-	If @error Then Return ''
-	Return $aMatch[0]
+	If Not (StringLeft($sActionName, StringLen($gc_sResizeActionPrefix)) == $gc_sResizeActionPrefix) Then Return ''
+	Local $sCommand = StringTrimLeft($sActionName, StringLen($gc_sResizeActionPrefix))
+	Return _CommandKind($sCommand) = 'resize' ? $sCommand : ''
 EndFunc   ;==>_ResizeActionCommand
 
 

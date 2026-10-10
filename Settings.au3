@@ -2,8 +2,6 @@
 #pragma compile(Icon, Assets\Icons\Icon.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth Settings)
-#pragma compile(ProductVersion, 1.42)
-#pragma compile(FileVersion, 1.42)
 #pragma compile(FileDescription, Moth Settings)
 #pragma compile(CompanyName, MarkovTrue)
 #pragma compile(LegalCopyright, © MarkovTrue)

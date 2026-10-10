@@ -2,8 +2,6 @@
 #pragma compile(Icon, Assets\Icons\Launcher.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth Launcher)
-#pragma compile(ProductVersion, 1.42)
-#pragma compile(FileVersion, 1.42)
 #pragma compile(FileDescription, Moth Launcher)
 #pragma compile(CompanyName, MarkovTrue)
 #pragma compile(LegalCopyright, © MarkovTrue)
@@ -128,14 +126,16 @@ Func _SetupConfig($sExtensions, $aActionList)
 		EndIf
 
 		; Разделитель рисуется у пункта перед ним: флаг «разделитель после»
-		$bSeparator = _GetSeparator($i + 1, $aActionList) > 0
+		$bSeparator = _GetSeparator($i + 1, $aActionList, $sExtensions) > 0
 
-		; Окно выбора (Popup=Moth.ConvertToJpg|...): отмеченные в нём действия встанут
-		; перед пунктом, когда их разложит _MothMenu_PinsUpdate. Окно размеров
-		; и без пресетов нужно: в нём задают свой размер
-		If _MothMenu_IsPopup($sActionName) And Not _MothMenu_IsResizer($sActionName) Then
-			If UBound(_MothMenu_PopupActions($sActionName, $sExtensions)) = 0 Then ContinueLoop
-		EndIf
+		; Чего формат не умеет, того в его меню нет. Отмеченные в окне выбора действия
+		; встанут перед пунктом окна, когда их разложит _MothMenu_PinsUpdate
+		If Not _MothMenu_ActionFits($sActionName, $sExtensions) Then ContinueLoop
+
+		; CommandStore общий для всех форматов: своя подпись группы - свой ключ,
+		; иначе «Exif» у JPEG затёр бы «Meta» у PNG
+		If $sActionContextMenuTitle <> _ActionTitle($sActionName) Then _
+				$sActionName &= '.' & StringUpper(StringRegExpReplace($sExtensions, '\..*', ''))
 
 		If $bSeparator Then
 			; Ключ с разделителем и без - разные пункты: у первого в имени Sep
@@ -163,11 +163,17 @@ Func _SetupConfig($sExtensions, $aActionList)
 EndFunc   ;==>_SetupConfig
 
 
-; Индекс разделителя сразу за пунктом, 0 - его нет. Выключенные пункты между ними пропускаются
-Func _GetSeparator($iIndex, Const ByRef $aActionList)
+; Индекс разделителя сразу за пунктом, 0 - его нет или после него пусто. Выключенные пункты
+; и пункты, которых формат не умеет, пропускаются: их в меню не будет
+Func _GetSeparator($iIndex, Const ByRef $aActionList, $sExtensions)
+	Local $iSeparator = 0
 	For $i = $iIndex To $aActionList[0][0]
 		If $aActionList[$i][1] <> 1 Then ContinueLoop
-		Return ($aActionList[$i][0] = 'Separator') ? $i : 0
+		If $aActionList[$i][0] = 'Separator' Then
+			If Not $iSeparator Then $iSeparator = $i
+		ElseIf _MothMenu_ActionFits($aActionList[$i][0], $sExtensions) Then
+			Return $iSeparator
+		EndIf
 	Next
 	Return 0
 EndFunc   ;==>_GetSeparator

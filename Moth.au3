@@ -2,9 +2,6 @@
 #pragma compile(Icon, Assets\Icons\Icon.ico)
 #pragma compile(x64, True)
 #pragma compile(ProductName, Moth)
-#pragma compile(ProductVersion, 1.42)
-#pragma compile(FileVersion, 1.42)
-#pragma compile(FileDescription, Moth - сжатие изображений без потерь)
 #pragma compile(CompanyName, MarkovTrue)
 #pragma compile(LegalCopyright, © MarkovTrue)
 #pragma compile(Comments, Program made by MarkovTrue)
@@ -860,13 +857,13 @@ Func _CompressFile()
 				_AddLogLine('    ' & $sPathFile)
 
 				$g_iOrientPending = 0
-				; Что умеет формат, решает только таблица $SUPPORT_FORMATS_*. Анимированный WEBP
+				; Что умеет формат, решает только таблица команд $gc_aCommands. Анимированный WEBP
 				; сверх неё: cwebp не читает анимацию, сжатие давало случайный пропуск, а палитра -
 				; один первый кадр
-				Local $sDispatch = $sActionCommand
+				Local $sDispatch = _CommandId($sActionCommand)
 				If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
 					$sDispatch = 'unsupported'
-				ElseIf $sExtensionFile = $FORMAT_WEBP And StringRegExp($sActionCommand, '^(loss|lossy|web|cq\d+)$') Then
+				ElseIf $sExtensionFile = $FORMAT_WEBP And _CommandKind($sActionCommand) = 'compress' Then
 					If _WebpIsAnimated($sPathFile) Then $sDispatch = 'unsupported'
 				EndIf
 				Switch $sDispatch
@@ -874,25 +871,7 @@ Func _CompressFile()
 						_UpdateGUI()
 						_ShowResult($sPathFile, $iFileSize, 0, _UnsupportedStatus($sPathFile, $sExtensionFile, $sActionCommand))
 					Case 'loss' ; Сжатие без потерь
-						Switch $sExtensionFile
-							Case 'bmp'
-								_CompressionBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'gif'
-								_CompressionGif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'jfif'
-								_CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'jpg', 'jpe', 'jpeg'
-								_CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'jxl'
-								_CompressionJxl($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'png'
-								_CompressionPng($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case 'webp'
-								_CompressionWebP($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-							Case Else
-								_UpdateGUI()
-								_ShowResult($sPathFile, $iFileSize, 0, _IsDir($sPathFile) ? $STATUS_SKIPPED_FOLDER : $STATUS_SKIPPED)
-						EndSwitch
+						_CompressionLossless($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'lossy' ; Сжатие с потерями
 						_CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'web' ; Сжатие для WEB
@@ -911,21 +890,18 @@ Func _CompressFile()
 						_ConvertToAvif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'toHeic' ; -> heic
 						_ConvertToHeic($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+					Case 'toHeif' ; -> heif
+						_ConvertToHeic($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $FORMAT_HEIF)
 					Case 'toGif' ; -> gif
 						_ConvertToGif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'toBmp' ; -> bmp
 						_ConvertToBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-					Case Else
-						If StringInStr($sActionCommand, 'cq') Then ; изменение палитры, например cq256
-							_ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-						ElseIf StringLeft($sActionCommand, 8) = 'percent_' Then ; percent_50_0
-							_ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-						ElseIf StringInStr($sActionCommand, 'resize') Then ; resize1000x1000x0
-							_ResizePixel($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-						Else
-							_UpdateGUI()
-							_ShowResult($sPathFile, $iFileSize, 0, _IsDir($sPathFile) ? $STATUS_SKIPPED_FOLDER : $STATUS_SKIPPED)
-						EndIf
+					Case 'cq' ; Палитра, cq256
+						_ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+					Case 'percent' ; percent_50_0
+						_ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+					Case 'resize' ; resize_1920_1080_0_0
+						_ResizePixel($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 				EndSwitch
 
 				; Ветка обработки не записала результат: считаем файл пропущенным,
@@ -952,12 +928,12 @@ EndFunc   ;==>_CompressFile
 
 
 ; Статус файла, который действие не берёт. Пропуск - папка, конвертация в тот же формат
-; (JPEG в JPG, HEIF в HEIC) и неизвестная команда, остальное - формат не поддерживается
+; (JPEG в JPG, HEIC в HEIC) и неизвестная команда, остальное - формат не поддерживается
 Func _UnsupportedStatus($sPathFile, $sExtensionFile, $sActionCommand)
 	If _IsDir($sPathFile) Then Return $STATUS_SKIPPED_FOLDER
-	If Not IsArray(_GetCommandSupportedFormats($sActionCommand)) Then Return $STATUS_SKIPPED
-	If StringLeft($sActionCommand, 2) = 'to' And _FormatGroup($sExtensionFile) = _FormatGroup(StringTrimLeft($sActionCommand, 2)) Then _
-			Return $STATUS_SKIPPED
+	If _CommandIndex($sActionCommand) < 0 Then Return $STATUS_SKIPPED
+	Local $sTarget = _CommandTarget($sActionCommand)
+	If $sTarget <> '' And _FormatGroup($sExtensionFile) = _FormatGroup($sTarget) Then Return $STATUS_SKIPPED
 	Return $STATUS_NOT_SUPPORTED
 EndFunc   ;==>_UnsupportedStatus
 
@@ -1242,7 +1218,7 @@ Func _ShowResult($sPathFile, $iFileSize, $iWinnerSize, $iStatusError = 0)
 				$sCompressingPercent = _GetCompressingPercent($iWinnerSize, $iFileSize)
 
 				; Итог «сэкономлено» - только у сжатия: у конвертации и ресайза размер меняется по другой причине
-				If _IsCompressionCommand($sActionCommand) Then
+				If _CommandKind($sActionCommand) = 'compress' Then
 					$g_iAllWinnerSize += $iWinnerSize
 					$g_iAllFileSize += $iFileSize
 				Else
@@ -1267,14 +1243,11 @@ EndFunc   ;==>_ShowResult
 Func _GetActionStr($sActionName)
 	If Not MapExists($g_oActionTitle, $sActionName) Then
 		Local $sCommand = _ActionRead($sActionName, 'Command'), $sTitle
-		Local $aFormat = StringRegExp($sCommand, '^to(\w+)$', 1)
-		Local $bConvert = Not @error
-		If $sCommand = 'loss' Then
+		If _CommandId($sCommand) = 'loss' Then
 			$sTitle = 'lossless'
-		ElseIf $bConvert Then
-			$sTitle = StringUpper($aFormat[0])
-		ElseIf StringLeft($sCommand, 3) = 'per' Or StringInStr($sCommand, 'resize') Then
-			; Те же признаки ресайза, что у разбора команды в _CompressFile
+		ElseIf _CommandKind($sCommand) = 'convert' Then
+			$sTitle = StringUpper(_CommandTarget($sCommand))
+		ElseIf _CommandKind($sCommand) = 'resize' Then
 			$sTitle = 'resize'
 		Else
 			$sTitle = StringRegExpReplace(_ActionRead($sActionName, 'ShortGuiTitle'), '^_', '')
@@ -1308,12 +1281,6 @@ Func _GetTaskIconIndex($sActionName)
 	$g_oTaskIcon[$sActionName] = $iIndex
 	Return $iIndex
 EndFunc   ;==>_GetTaskIconIndex
-
-
-; Сжатие, а не конвертация или ресайз: только у него считается итог «сэкономлено»
-Func _IsCompressionCommand($sCommand)
-	Return StringInStr($sCommand, 'cq') > 0 Or $sCommand = 'lossy' Or $sCommand = 'web' Or $sCommand = 'loss'
-EndFunc   ;==>_IsCompressionCommand
 
 
 ; Иконка кешируется по расширению: у всех файлов одного типа она одна
@@ -1574,9 +1541,10 @@ Func _ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 
 	; Квантизация цвета. Дизеринг Riemersma идёт по кривой Гильберта: на градиентах
 	; меньше шума, чем у Floyd-Steinberg, и файл на тестовых PNG выходит на 25-40% меньше.
-	; WEBP и JXL уходят в PNG, а после палитры упаковываются обратно без потерь
+	; WEBP и JXL уходят в PNG, а после палитры упаковываются обратно без потерь. GIF остаётся
+	; собой: в PNG ушёл бы только первый кадр анимации
 	$sSourceFile = $sPathFile
-	If $sExtensionFile <> $FORMAT_PNG Then
+	If $sExtensionFile <> $FORMAT_PNG And $sExtensionFile <> $FORMAT_GIF Then
 		$sSourceFile = _DecodeToPng($sPathFile, $sExtensionFile)
 		If @error Then
 			_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
@@ -1591,7 +1559,14 @@ Func _ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Return
 	EndIf
 
-	$sTempPath = _CompressionRun('magick', '{pathFile} -quiet -dither Riemersma -colors ' & $sColors & ' {pathFile}', $sSourceFile, $FORMAT_PNG)
+	If $sExtensionFile = $FORMAT_GIF Then
+		; Кадры раскрываются (-coalesce) и получают одну общую палитру (+remap): со своей у каждого
+		; кадра цвета анимации мерцали бы. -layers optimize снова оставляет в кадре только изменения
+		$sTempPath = _CompressionRun('magick', '{pathFile} -quiet -coalesce -dither Riemersma -colors ' & $sColors & _
+				' +remap -layers optimize {pathFile}', $sSourceFile, $FORMAT_GIF)
+	Else
+		$sTempPath = _CompressionRun('magick', '{pathFile} -quiet -dither Riemersma -colors ' & $sColors & ' {pathFile}', $sSourceFile, $FORMAT_PNG)
+	EndIf
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 		Return
@@ -1604,6 +1579,10 @@ Func _ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Case $FORMAT_JXL
 			$sWinnerPath = _ConvertRun('cjxl', '{pathFile} {pathFileOut} -d 0 -e 9 --quiet', $sTempPath, _GetTempPathFileForCompression('cjxl', $FORMAT_JXL))
 			$iError = @error
+		Case $FORMAT_GIF
+			; ImageMagick пишет GIF без оптимизации, дожимает gifsicle, как при сжатии без потерь
+			$sWinnerPath = _CompressionRun('gifsicle', '-w -j --no-conserve-memory -o {pathFile} -O3 --no-comments --no-extensions --no-names {pathFile}', $sTempPath, $FORMAT_GIF)
+			If @error Then $sWinnerPath = $sTempPath
 		Case Else
 			; ImageMagick пишет PNG без оптимизации: без доочистки файл выходил больше исходного
 			$sWinnerPath = _CompressionRun('pingo', '-lossless {pathFile}', $sTempPath, $FORMAT_PNG)
@@ -1651,22 +1630,17 @@ EndFunc   ;==>_RunReadOutput
 ; ============================================================
 
 Func _ResizePercent($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	Local $sWinnerPath, $iWinnerSize, $sActionCommand, $aLineSplit
-	Local $sPercent, $sFilter = 0
+	Local $sWinnerPath, $iWinnerSize
 
-	; percent_<проценты>_<фильтр>
-	$sActionCommand = _ActionRead($sActionName, 'Command')
-	$aLineSplit = StringSplit($sActionCommand, '_')
-	If $aLineSplit[0] = 3 Then
-		$sPercent = $aLineSplit[2]
-		$sFilter = $aLineSplit[3]
-	Else
+	; [проценты, ширина, высота, режим, фильтр, увеличивать]
+	Local $aResize = _ResizeParse(_ActionRead($sActionName, 'Command'))
+	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_SKIPPED)
 		Return
 	EndIf
 
 	; -filter - настройка, она действует на операции после себя, поэтому стоит до -resize
-	$sWinnerPath = _CompressionRun('magick', '{pathFile} -quiet -filter ' & _GetFilterNameByIndx($sFilter) & ' -resize ' & $sPercent & '%' & _
+	$sWinnerPath = _CompressionRun('magick', '{pathFile} -quiet -filter ' & _GetFilterNameByIndx($aResize[4]) & ' -resize ' & $aResize[0] & '%' & _
 			_MagickEncodeArgs($sPathFile, $sExtensionFile) & ' {pathFile}', $sPathFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
@@ -1685,27 +1659,26 @@ EndFunc   ;==>_ResizePercent
 
 
 Func _ResizePixel($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
-	Local $sWinnerPath, $iWinnerSize, $sActionCommand, $aLineSplit
+	Local $sWinnerPath, $iWinnerSize
 	Local $sUtilParams, $sSize, $iMode
 
-	; resize_<ширина>_<высота>_<режим>_<фильтр>[_1 - увеличивать]
-	$sActionCommand = _ActionRead($sActionName, 'Command')
-	$aLineSplit = StringSplit($sActionCommand, '_')
-	If $aLineSplit[0] <> 5 And $aLineSplit[0] <> 6 Then
+	; [проценты, ширина, высота, режим, фильтр, увеличивать]
+	Local $aResize = _ResizeParse(_ActionRead($sActionName, 'Command'))
+	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_SKIPPED)
 		Return
 	EndIf
 
 	; Сторона 0 - по пропорции: 1920x задаёт только ширину. Заполнять тогда нечего
-	$sSize = (Int($aLineSplit[2]) > 0 ? $aLineSplit[2] : '') & 'x' & (Int($aLineSplit[3]) > 0 ? $aLineSplit[3] : '')
-	$iMode = (StringLeft($sSize, 1) = 'x' Or StringRight($sSize, 1) = 'x') ? 0 : Int($aLineSplit[4])
+	$sSize = ($aResize[1] ? $aResize[1] : '') & 'x' & ($aResize[2] ? $aResize[2] : '')
+	$iMode = ($aResize[1] And $aResize[2]) ? $aResize[3] : 0
 
 	; Поворот по Exif - до ресайза: сторона размера - сторона картинки, как её видно.
 	; -filter - настройка, она действует на операции после себя, поэтому стоит до -resize
-	$sUtilParams = '{pathFile} -quiet -auto-orient -filter ' & _GetFilterNameByIndx($aLineSplit[5]) & ' -resize ' & $sSize
+	$sUtilParams = '{pathFile} -quiet -auto-orient -filter ' & _GetFilterNameByIndx($aResize[4]) & ' -resize ' & $sSize
 	If $iMode > 0 Then $sUtilParams &= '^'
 	; > - только уменьшать: картинка меньше размера остаётся как есть
-	If $aLineSplit[0] < 6 Or $aLineSplit[6] <> '1' Then $sUtilParams &= '>'
+	If Not $aResize[5] Then $sUtilParams &= '>'
 	; Обрезка, а не -extent: у неувеличенной картинки -extent дорисовал бы поля
 	If $iMode = 2 Then $sUtilParams &= ' -gravity center -crop ' & $sSize & '+0+0 +repage'
 
@@ -1926,19 +1899,33 @@ EndFunc   ;==>_ConvertToAvif
 ; HEIC пишет heif-enc (libheif и x265): ImageMagick его только читает. Качество 70: на фото
 ; и скриншотах ~43 дБ, на глаз без потерь, а файл меньше исходного JPEG. Цвет 4:2:0, как у iPhone:
 ; 4:4:4 чётче на цветном тексте, но его открывает не всякий просмотрщик HEIC.
-; Профиль и прозрачность переносятся, у анимации первый кадр
-Func _ConvertToHeic($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+; Профиль и прозрачность переносятся, у анимации первый кадр.
+; HEIF пишется так же: heif-enc кладёт в .heif и .heic одни и те же байты. HEIC в HEIF и HEIF
+; с HEVC в HEIC копируются с новым расширением, без перекодирования и потерь (_HeifCopyable)
+Func _ConvertToHeic($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $sFormatOut = $FORMAT_HEIC)
+	If _HeifCopyable($sPathFile, $sExtensionFile, $sFormatOut) Then
+		Local $sCopy = _GetTempPathFileForCompression('copy', $sFormatOut)
+		_AddLogLine('    те же данные, копия с расширением .' & $sFormatOut)
+		If Not FileCopy($sPathFile, $sCopy, $FC_OVERWRITE + $FC_CREATEPATH) Then
+			_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
+			Return
+		EndIf
+		_SaveConverted($sCopy, $sPathFile, $iFileSize, $sFormatOut, $sActionName)
+		Return
+	EndIf
+
 	Local $sPng = _DecodeToPng($sPathFile, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 		Return
 	EndIf
 	; Кириллицу в пути heif-enc не понимает и молча ничего не пишет. Оба файла лежат в папке
-	; временных, она же рабочая папка утилиты: хватает имён, а они латиницей
+	; временных, она же рабочая папка утилиты: хватает имён, а они латиницей. Временный файл
+	; всегда .heic: по расширению .avif heif-enc сам перешёл бы на AV1
 	Local $sHeic = _GetTempPathFileForCompression('heif-enc', $FORMAT_HEIC)
 	Local $sWinnerPath = _ConvertRun('heif-enc', '-q 70 "' & _GetFileName($sPng) & '" -o "' & _GetFileName($sHeic) & '"', $sPng, $sHeic)
 	FileDelete($sPng)
-	_SaveConverted($sWinnerPath, $sPathFile, $iFileSize, $FORMAT_HEIC, $sActionName)
+	_SaveConverted($sWinnerPath, $sPathFile, $iFileSize, $sFormatOut, $sActionName)
 EndFunc   ;==>_ConvertToHeic
 
 
@@ -2207,20 +2194,39 @@ EndFunc   ;==>_JpegAddJfifHeader
 ; Сжатие без потерь
 ; ============================================================
 
+; Утилиты по формату. Формат сюда пускает только таблица команд
+Func _CompressionLossless($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+	Switch $sExtensionFile
+		Case $FORMAT_BMP
+			_CompressionBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_GIF
+			_CompressionGif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_JFIF
+			_CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG
+			_CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_JXL
+			_CompressionJxl($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_PNG
+			_CompressionPng($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_WEBP
+			_CompressionWebP($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+	EndSwitch
+EndFunc   ;==>_CompressionLossless
+
+
 ; Два варианта без потерь, jpegoptim и ECT, побеждает меньший. Прогрессивный - только jpegoptim
 Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sWinnerPath, $sRunKey, $sPathFileJpg
 	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
-	Local $bToProgressive = _ActionRead($sActionName, 'ToProgressive') = 1
 
 	; Без Exif пропал бы и поворот: применяем его заранее
-	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
+	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, $bSaveExif)
 	Local $bKeepIcc = Not $bSaveExif And _IccKeep($sPathFile)
 
 	; Pingo и ECT с -progressive кладут DC цветности Cb и Cr в один скан. Photoshop такой
 	; JPEG с цветностью 4:2:0 показывает полосами и с чужими цветами (mozjpeg, issue 29).
 	; У jpegoptim DC каждой компоненты в своём скане, а ECT без -progressive пишет обычный JPEG
-	Local $bEct = Not $bToProgressive
 	Local $sRunKeyEct = '-9 -quiet --strict --mt-deflate --mt-file'
 	If Not $bSaveExif And Not $bKeepIcc Then $sRunKeyEct &= ' -strip'
 	$sRunKeyEct &= ' {pathFile}'
@@ -2228,7 +2234,7 @@ Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	; нужен, ECT дожимает файл после jpegoptim, где кроме профиля уже ничего нет.
 	; Иначе варианты независимы: ECT работает, пока идёт jpegoptim
 	Local $sPath2 = '', $nSize2 = 0, $iError2 = 0, $iPid2 = 0
-	If $bEct And Not $bKeepIcc Then
+	If Not $bKeepIcc Then
 		$sPath2 = _CompressionStart('ect', $sRunKeyEct, $sPathFileJpg, $sExtensionFile)
 		$iError2 = @error
 		$iPid2 = @extended
@@ -2236,21 +2242,16 @@ Func _CompressionJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 
 	$sRunKey = '{pathFile} --quiet --force -w ' & $g_iProcCount
 	If Not $bSaveExif Then $sRunKey &= _JpegStripArgs($bKeepIcc)
-	Local $sPath1
-	If $bToProgressive Then
-		$sPath1 = _CompressionRun('jpegoptim', $sRunKey & ' --all-progressive', $sPathFileJpg, $sExtensionFile)
-	Else
-		$sPath1 = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
-	EndIf
+	Local $sPath1 = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
 	Local $nSize1 = @error ? 0 : FileGetSize($sPath1)
 
-	If $bEct And Not $bKeepIcc Then
+	If Not $bKeepIcc Then
 		If Not $iError2 Then
 			$sPath2 = _CompressionWait('ect', $sPath2, $iPid2)
 			$iError2 = @error
 		EndIf
 		$nSize2 = $iError2 ? 0 : FileGetSize($sPath2)
-	ElseIf $bEct And $nSize1 > 0 Then
+	ElseIf $nSize1 > 0 Then
 		$sPath2 = _CompressionRun('ect', $sRunKeyEct, $sPath1, $sExtensionFile)
 		$nSize2 = @error ? 0 : FileGetSize($sPath2)
 	EndIf
@@ -2278,17 +2279,12 @@ EndFunc   ;==>_CompressionJpg
 Func _CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sWinnerPath, $sPathFileJpg, $sRunKey
 	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
-	Local $bToProgressive = _ActionRead($sActionName, 'ToProgressive') = 1
 
-	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, $bToProgressive, $bSaveExif)
+	$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, $bSaveExif)
 
 	$sRunKey = '{pathFile} --quiet --force -w ' & $g_iProcCount
 	If Not $bSaveExif Then $sRunKey &= _JpegStripArgs(_IccKeep($sPathFile))
-	If $bToProgressive Then
-		$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey & ' --all-progressive', $sPathFileJpg, $sExtensionFile)
-	Else
-		$sWinnerPath = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
-	EndIf
+	$sWinnerPath = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
 	If @error Then
 		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
 		Return
@@ -2522,6 +2518,39 @@ Func _WebpIsAnimated($sPathFile)
 EndFunc   ;==>_WebpIsAnimated
 
 
+; HEIC или HEIF годится в другой из них как есть, меняется только расширение. HEIC всегда
+; HEIF: это HEIF с HEVC внутри. HEIF - HEIC, если среди брендов есть heic или heix.
+; Под .heif бывает и AV1, и JPEG: такой файл в HEIC надо кодировать
+Func _HeifCopyable($sPathFile, $sExtensionFile, $sFormatOut)
+	If $sExtensionFile = $FORMAT_HEIF And $sFormatOut = $FORMAT_HEIC Then
+		Return StringRegExp(_HeifBrands($sPathFile), '\|hei[cx]\|') = 1
+	ElseIf $sExtensionFile = $FORMAT_HEIC And $sFormatOut = $FORMAT_HEIF Then
+		Return StringRegExp(_HeifBrands($sPathFile), '\|(?:mif1|msf1|hei[cx]|hev[cx])\|') = 1
+	EndIf
+	Return False
+EndFunc   ;==>_HeifCopyable
+
+
+; Бренды первого блока ftyp: '|heic|mif1|...|', '' - блока нет, файл не HEIF
+Func _HeifBrands($sPathFile)
+	Local $hFile = FileOpen($sPathFile, $FO_BINARY)
+	If $hFile = -1 Then Return ''
+	Local $dHead = FileRead($hFile, 1024)
+	FileClose($hFile)
+	If BinaryToString(BinaryMid($dHead, 5, 4)) <> 'ftyp' Then Return ''
+	; Размер блока - big-endian: Int читал бы байты задом наперёд
+	Local $iSize = Dec(Hex(BinaryMid($dHead, 1, 4)))
+	If $iSize < 16 Or $iSize > BinaryLen($dHead) Then Return ''
+	; Основной бренд, 4 байта версии, затем совместимые бренды
+	Local $sBrands = '|'
+	For $i = 9 To $iSize - 3 Step 4
+		If $i = 13 Then ContinueLoop
+		$sBrands &= BinaryToString(BinaryMid($dHead, $i, 4)) & '|'
+	Next
+	Return $sBrands
+EndFunc   ;==>_HeifBrands
+
+
 ; Исходник без потерь по пикселям: тогда и результат конвертации должен быть без потерь
 Func _IsLosslessSource($sPathFile, $sExtensionFile)
 	Switch $sExtensionFile
@@ -2623,9 +2652,10 @@ Func _CompressionLossy($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 			$sWinnerPath = _ConvertRun('cjxl', '{pathFile} {pathFileOut} -d 1 --quiet', $sPathFile, _GetTempPathFileForCompression('cjxl', $FORMAT_JXL))
 
 		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
-			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, True, False)
-			$sRunKey = '{pathFile} --quiet --force --max=92 --all-progressive -w ' & $g_iProcCount & _JpegStripArgs(_IccKeep($sPathFile))
-			$sWinnerPath = _CompressionRun('jpegoptim', $sRunKey, $sPathFileJpg, $sExtensionFile)
+			; Обычный или прогрессивный - что меньше. Прогрессивный всегда - только у WEB
+			$sPathFileJpg = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
+			$sRunKey = '{pathFile} --quiet --force --max=92 -w ' & $g_iProcCount & _JpegStripArgs(_IccKeep($sPathFile))
+			$sWinnerPath = _JpegoptimAuto($sRunKey, $sPathFileJpg, $sExtensionFile)
 
 		Case $FORMAT_PNG
 			$sWinnerPath = _CompressionRun('pingo', '-s4 {pathFile}', $sPathFile, $sExtensionFile)

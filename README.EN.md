@@ -14,33 +14,40 @@ The choice of actions may differ from format to format because of its features.
 
 ## Features
 * Works with files and folders from the context menu
-* Lossless and lossy compression, WEB optimization, palette, conversion, resizing
-* The progress window closes automatically, the delay is set in the settings, a click on the window cancels closing
-* Drag-and-drop support
+* Lossless and lossy compression, palette, conversion, resizing
+* The progress window closes automatically, a click on the window cancels closing
 * The file list updates on the fly, you can add to the queue while Moth is working
-* Flexible overwrite rules: by default the file is overwritten only by lossless compression
 * Light and dark theme, English and Russian, update check
+* Overwrite settings, by default the file is overwritten only by lossless compression
+* Drag-and-drop support
+* The color profile is always kept, except sRGB, the image does not change without it
+* The orientation tag is respected by every action, a photo never ends up on its side
 * Compression formats: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
 * Conversion formats: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
 
-
 ## Formats and actions
 
-| Action | JPEG | JFIF | PNG | WEBP | JXL | AVIF | GIF | BMP |
+| Action | &nbsp;JPEG&nbsp; | &nbsp;&nbsp;JFIF&nbsp;&nbsp; | &nbsp;PNG&nbsp;&#8239; | WEBP&#8239; | &nbsp;&nbsp;JXL&nbsp;&nbsp;&#8239; | &nbsp;AVIF&nbsp;&#8239; | &nbsp;&nbsp;GIF&nbsp;&nbsp;&#8239; | &nbsp;BMP&nbsp;&#8239; |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | **Lossless compression**<br><sub>Compression algorithms are tried to reduce<br>the size. Exif and metadata are removed too.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
 | **Lossless, keep Exif / Meta**<br><sub>The same, but Exif and metadata are kept.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
 | **Lossy compression**<br><sub>Careful compression with no visible changes.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
 | **Compression for WEB**<br><sub>Stronger compression, but gentle to gradients.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Palette change**<br><sub>Fewer colors to reduce the size.<br>Hilbert curve dithering.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
+| **Palette change**<br><sub>Fewer colors to reduce the size.<br>Hilbert curve dithering.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
+| **Resize**<br><sub>Percent, width and height, your own presets.<br>Scaling modes and resampling filters.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
 
-Empty cells are not an oversight:
-* AVIF is not compressed losslessly, and removing its color profile is not desirable. HEIC is only converted.
+#### Empty cells are normal:
+
+* AVIF is not compressed losslessly, and removing its color profile is not desirable.<br>
+ A palette change makes no sense for AVIF, the file comes out bigger than the source.
 * BMP stores the image uncompressed, lossy BMP makes no sense, converting is better.
-* The palette is offered where its result stays lossless: PNG, WEBP and JXL.<br>
- JPEG and AVIF lose the palette when compressing, and GIF has at most 256 colors anyway.
+* A palette won't shrink JPEG or AVIF, and compression blurs the colors back into thousands of shades.
+* GIF is limited to 256 colors, so its palette change offers only 64 and 128.
 
-### Conversion
+## Conversion
+
+All formats convert to each other, in any direction.<br>
+Conversion to JPG, PNG and WEBP is in the menu by default.
 
 | Format | Files | Details |
 |---|---|---|
@@ -50,22 +57,33 @@ Empty cells are not an oversight:
 | **WEBP** | `.webp` | Lossless from JPEG, PNG, GIF and BMP, GIF animation is kept |
 | **JXL** | `.jxl` | JPEG is converted reversibly, lossless images stay lossless |
 | **AVIF** | `.avif` | Quality 85: visually lossless, smaller than the source JPEG |
-| **HEIC** | `.heic` `.heif` | Saved as `.heic`, quality 70, 4:2:0 color like iPhone photos |
+| **HEIC** | `.heic` | Quality 70, 4:2:0 color like iPhone photos |
+| **HEIF** | `.heif` | The same HEIC under another extension |
 | **GIF** | `.gif` | 256 colors with dithering, WEBP animation is kept |
 | **BMP** | `.bmp` | Uncompressed, transparency is filled with white |
 
-All formats convert to each other, in any direction.
+#### Notes
 
-Conversion to JPG, PNG and WEBP is in the menu by default, the other formats are in the "Convert…" window.
-When a GIF or WEBP animation is converted to a non-animated format, only the first frame is converted.
+* HEIC and HEIF with the HEVC codec convert to each other losslessly, only the extension changes.
+* HEIF with another codec, AV1 for example, is encoded to HEIC anew.
+* Converting a GIF or WEBP to a non-animated format keeps only the first frame.
 
-Moth keeps the color profile when compressing and converting. Only an sRGB profile is removed, the image does not change without it.
+## More about JPEG
 
+The Exif orientation is respected by every action, a photo never ends up on its side
+* Compression with Exif keeps the tag, the viewer rotates the image
+* Compression without Exif rotates the JPEG losslessly, without re-encoding
+* If it cannot be rotated losslessly, the tag stays in the file
+* Conversion and resizing save the image already rotated
+
+Progressive JPEG is chosen automatically
+* Compression for WEB always saves a progressive JPEG
+* Other compression and conversion to JPEG pick the smaller of two variants
 
 ## Usage
 1. Unpack the archive to any folder, for example `D:\Portable\Moth`
-2. Run `Settings.exe`, tick "Add to the Explorer context menu" and press "OK"
-3. The `Moth` item appears in the Explorer context menu
+2. Run `Settings.exe`, tick "Add to the Explorer context menu" and press "OK"<br>
+  The `Moth` item appears in the Explorer context menu
 
 To remove Moth from the menu, untick the same box. If you move the Moth folder, open the settings and press "OK" again.
 
@@ -73,7 +91,7 @@ To remove Moth from the menu, untick the same box. If you move the Moth folder, 
 
 ## Menu windows
 ### Extended list
-Items with an ellipsis open a window with a list. The list holds only the actions the file format supports.
+An item with an ellipsis opens a list of the actions the file format supports.
 
 ![Choice window](Preview/Convert.en.png)
 
@@ -84,7 +102,7 @@ The window has ready presets on top, below them the row of your own size and the
 
 ![Resize window](Preview/Resizer.en.png)
 
-The title and postfix of the row change on the fly. The last applied size is kept.<br>
+The title and postfix of the row change on the fly. The last applied action is kept.<br>
 A size that does not enlarge has a `↓` arrow in its title.
 
 When both width and height are set, the mode decides how the image fits the frame:
@@ -111,10 +129,10 @@ Everything is already in the archive, in the `Apps` folder:
 * [`jpegtran 10`](http://jpegclub.org/jpegtran/) – JPEG: lossless rotation by the Exif tag
 * [`cwebp 1.6.0`](https://developers.google.com/speed/webp/docs/cwebp) – WEBP: compression and conversion to WEBP
 * [`libjxl 0.12.0`](https://github.com/libjxl/libjxl) – JXL: compression, conversion to JXL and back, JPEG is restored byte for byte
-* [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: lossless, lossy and WEB compression
+* [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: lossless, lossy and WEB compression, squeezes the palette result
 * [`ImageWorsener 1.3.5`](https://entropymine.com/imageworsener/) – BMP: lossless compression
-* [`libheif 1.23.4`](https://github.com/strukturag/libheif) – conversion to HEIC, x265 encoder
-* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF and reading HEIC
+* [`libheif 1.23.4`](https://github.com/strukturag/libheif) – conversion to HEIC and HEIF, x265 encoder
+* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF and reading HEIC and HEIF
 
 After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 
