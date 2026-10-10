@@ -17,7 +17,7 @@
       move-horizontal, move-vertical -> FieldWidth, FieldHeight.png (поля ширины и высоты в окне размеров, 14 px)
       minimize-2  -> Themes/Icons/NoEnlarge.png (кнопка «Не увеличивать» в окне размеров, 16 px: стрелки внутрь -
                      картинка только уменьшается)
-      check, x, minus, dot, hourglass -> StatusDone, StatusError, StatusSkip, StatusQueue, StatusWork.png
+      check, x, minus, dot, loader -> StatusDone, StatusError, StatusSkip, StatusQueue, StatusWork.png
                      (статус файла в таблице и подвале главного окна, 14 px; цвет задаёт Moth)
 
     После сборки скопировать PNG в MothPortable\Themes\Icons.
@@ -58,7 +58,7 @@ $map = @(
     @{ name = 'x'              ; out = (Join-Path $IconDir 'StatusError.png') ; sw = 1.75  ; size = 14 },
     @{ name = 'minus'          ; out = (Join-Path $IconDir 'StatusSkip.png')  ; sw = 1.75  ; size = 14 },
     @{ name = 'dot'            ; out = (Join-Path $IconDir 'StatusQueue.png') ; sw = 3.5   ; size = 14 },
-    @{ name = 'hourglass'      ; out = (Join-Path $IconDir 'StatusWork.png')  ; sw = 1.25  ; size = 14 }
+    @{ name = 'loader'         ; out = (Join-Path $IconDir 'StatusWork.png')  ; sw = 1.5   ; size = 14 }
 )
 
 $rgb   = [System.Windows.Media.Color]::FromRgb(

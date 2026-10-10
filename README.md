@@ -22,27 +22,28 @@
 * Поддержка перетаскивания drag-and-drop
 * Цветовой профиль всегда сохраняется, кроме sRGB, без него картинка не меняется
 * Метка ориентации учитывается для всех действий, снимок не ляжет на бок
-* Форматы для сжатия: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
-* Форматы для конвертации: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
+* Форматы для сжатия: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `TIF` `TIFF` `WEBP`
+* Форматы для конвертации: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `TIF` `TIFF` `WEBP`
 
 ## Форматы и действия
 
-| Действие | &nbsp;JPEG&nbsp; | &nbsp;&nbsp;JFIF&nbsp;&nbsp; | &nbsp;PNG&nbsp;&#8239; | WEBP&#8239; | &nbsp;&nbsp;JXL&nbsp;&nbsp;&#8239; | &nbsp;AVIF&nbsp;&#8239; | &nbsp;&nbsp;GIF&nbsp;&nbsp;&#8239; | &nbsp;BMP&nbsp;&#8239; |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **Сжатие без потерь**<br><sub>Перебираются алгоритмы сжатия для уменьшения<br>размера. Также удаляются Exif и метаданные.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |
-| **Без потерь, сохранить Exif / Meta**<br><sub>То же самое, но Exif и метаданные сохраняются.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |  |  |
-| **Сжатие с потерями**<br><sub>Аккуратное сжатие без видимых изменений.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |
-| **Сжатие для WEB**<br><sub>Сжатие агрессивнее, но щадит градиенты.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |
-| **Изменение палитры**<br><sub>Уменьшение числа цветов для уменьшения<br>размера. Дизеринг по кривой Гильберта.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |
-| **Изменение размера**<br><sub>Проценты, ширина и высота, свои пресеты.<br>Режимы масштабирования и фильтры сжатия.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |
+| Действие | &nbsp;JPEG&nbsp; | &nbsp;&nbsp;JFIF&nbsp;&nbsp; | &nbsp;PNG&nbsp;&#8239; | WEBP&#8239; | &nbsp;&nbsp;JXL&nbsp;&nbsp;&#8239; | &nbsp;AVIF&nbsp;&#8239; | &nbsp;&nbsp;GIF&nbsp;&nbsp;&#8239; | &nbsp;BMP&nbsp;&#8239; | &nbsp;TIFF&nbsp;&#8239; |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Сжатие без потерь**<br><sub>Перебираются алгоритмы сжатия для уменьшения размера. Также удаляются Exif и метаданные.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |
+| **Без потерь, сохранить Exif / Meta**<br><sub>То же самое, но Exif и метаданные сохраняются.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |
+| **Сжатие с потерями**<br><sub>Аккуратное сжатие без видимых изменений.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |  |
+| **Сжатие для WEB**<br><sub>Сжатие агрессивнее, но щадит градиенты.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |  |
+| **Изменение палитры**<br><sub>Уменьшение числа цветов для уменьшения размера. Дизеринг по кривой Гильберта.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |  |  |
+| **Изменение размера**<br><sub>Проценты, ширина и высота, свои пресеты. Режимы масштабирования и фильтры сжатия.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Да" title="Да"> |
 
 #### Пустые клетки - это нормально:
 
-* AVIF без потерь не сжимается, а удалять из него цветовой профиль нежелательно.<br>
+* AVIF без потерь не пережать, сжатие без потерь только удаляет Exif и XMP, профиль остаётся.<br>
  Изменение палитры для AVIF не имеет смысла, файл получается больше исходного.
 * BMP хранит картинку без сжатия, сжимать его с потерями бессмысленно, лучше конвертировать.
 * JPEG и AVIF изменение палитры не уменьшит, а сжатие снова размоет цвета на тысячи оттенков.
 * GIF ограничен 256 цветами, для него изменение палитры есть только 64 и 128.
+* TIFF - формат хранения, сжатие с потерями и палитра ему не нужны. Для веба его лучше конвертировать.
 
 ## Конвертация
 
@@ -61,24 +62,32 @@
 | **HEIF** | `.heif` | Тот же HEIC под другим расширением |
 | **GIF** | `.gif` | 256 цветов с дизерингом, анимация WEBP сохраняется |
 | **BMP** | `.bmp` | Без сжатия, прозрачность заливается белым |
+| **TIFF** | `.tif` `.tiff` | Без потерь, сжатие Zip, профиль и прозрачность сохраняются |
 
 #### Особенности
 
 * HEIC и HEIF с кодеком HEVC переводятся друг в друга без потерь, меняется только расширение.
 * HEIF с другим кодеком, например AV1, в HEIC кодируется заново.
 * Конвертация GIF и WEBP в неанимированный формат сохраняет только первый кадр.
+* Из многостраничного TIFF конвертируется первая страница, CMYK переводится в RGB по профилю.
 
 ## Подробнее про JPEG
 
-Ориентация из Exif учитывается для всех действий, снимок не ляжет на бок
-* Сжатие с Exif оставляет метку, картинку поворачивает просмотрщик
-* Сжатие без Exif поворачивает JPEG без потерь и перекодирования
-* Если без потерь не повернуть, метка остаётся в файле
-* Конвертация и изменение размера сохраняют картинку повёрнутой
+Ориентация из Exif учитывается для всех действий, снимок не ляжет на бок.
+* Сжатие с Exif оставляет метку, картинку поворачивает просмотрщик.
+* Сжатие без Exif поворачивает JPEG без потерь и перекодирования.
+* Если без потерь не повернуть, метка остаётся в файле.
+* Конвертация и изменение размера сохраняют картинку повёрнутой.
 
-Прогрессивный JPEG выбирается автоматически
-* Сжатие для WEB всегда сохраняет прогрессивный JPEG
-* Остальное сжатие и конвертация в JPEG выбирают меньший из двух вариантов
+Прогрессивный JPEG выбирается автоматически.
+* Сжатие для WEB всегда сохраняет прогрессивный JPEG.
+* Остальное сжатие и конвертация в JPEG выбирают меньший из двух вариантов.
+
+## Подробнее про TIFF
+
+* Сжатие переписывает все страницы без потерь, файл сохраняется, только если стал меньше.
+* Слои Photoshop не теряются. Изменить размер такого файла без потери слоёв невозможно, он пропускается.
+* Профессиональные TIFF с особым хранением цвета не поддерживаются, например HDR, научные и астрономические снимки, файлы для типографии в цвете Lab.
 
 ## Использование
 1. Распакуйте архив в удобную папку, например `D:\Portable\Moth`
@@ -132,7 +141,8 @@
 * [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: сжатие без потерь, с потерями и для WEB, дожимает палитру
 * [`ImageWorsener 1.3.5`](https://entropymine.com/imageworsener/) – BMP: сжатие без потерь
 * [`libheif 1.23.4`](https://github.com/strukturag/libheif) – конвертация в HEIC и HEIF, кодировщик x265
-* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – конвертация, палитра, изменение размера, AVIF и чтение HEIC и HEIF
+* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – конвертация, палитра, изменение размера, AVIF, TIFF и чтение HEIC и HEIF
+* [`ExifTool 13.59`](https://exiftool.org/) – TIFF: переносит Exif, цветовой профиль и слои Photoshop при сжатии. AVIF: удаляет Exif и XMP
 
 После конвертации и палитры итог дожимается той же утилитой, что и при сжатии без потерь.
 

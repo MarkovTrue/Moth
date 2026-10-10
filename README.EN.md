@@ -22,27 +22,28 @@ The choice of actions may differ from format to format because of its features.
 * Drag-and-drop support
 * The color profile is always kept, except sRGB, the image does not change without it
 * The orientation tag is respected by every action, a photo never ends up on its side
-* Compression formats: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
-* Conversion formats: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `WEBP`
+* Compression formats: `AVIF` `BMP` `GIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `TIF` `TIFF` `WEBP`
+* Conversion formats: `AVIF` `BMP` `GIF` `HEIC` `HEIF` `JFIF` `JPE` `JPEG` `JPG` `JXL` `PNG` `TIF` `TIFF` `WEBP`
 
 ## Formats and actions
 
-| Action | &nbsp;JPEG&nbsp; | &nbsp;&nbsp;JFIF&nbsp;&nbsp; | &nbsp;PNG&nbsp;&#8239; | WEBP&#8239; | &nbsp;&nbsp;JXL&nbsp;&nbsp;&#8239; | &nbsp;AVIF&nbsp;&#8239; | &nbsp;&nbsp;GIF&nbsp;&nbsp;&#8239; | &nbsp;BMP&nbsp;&#8239; |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **Lossless compression**<br><sub>Compression algorithms are tried to reduce<br>the size. Exif and metadata are removed too.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
-| **Lossless, keep Exif / Meta**<br><sub>The same, but Exif and metadata are kept.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  |
-| **Lossy compression**<br><sub>Careful compression with no visible changes.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Compression for WEB**<br><sub>Stronger compression, but gentle to gradients.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Palette change**<br><sub>Fewer colors to reduce the size.<br>Hilbert curve dithering.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |
-| **Resize**<br><sub>Percent, width and height, your own presets.<br>Scaling modes and resampling filters.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
+| Action | &nbsp;JPEG&nbsp; | &nbsp;&nbsp;JFIF&nbsp;&nbsp; | &nbsp;PNG&nbsp;&#8239; | WEBP&#8239; | &nbsp;&nbsp;JXL&nbsp;&nbsp;&#8239; | &nbsp;AVIF&nbsp;&#8239; | &nbsp;&nbsp;GIF&nbsp;&nbsp;&#8239; | &nbsp;BMP&nbsp;&#8239; | &nbsp;TIFF&nbsp;&#8239; |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| **Lossless compression**<br><sub>Compression algorithms are tried to reduce the size. Exif and metadata are removed too.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
+| **Lossless, keep Exif / Meta**<br><sub>The same, but Exif and metadata are kept.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
+| **Lossy compression**<br><sub>Careful compression with no visible changes.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |
+| **Compression for WEB**<br><sub>Stronger compression, but gentle to gradients.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |
+| **Palette change**<br><sub>Fewer colors to reduce the size. Hilbert curve dithering.</sub> |  |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |  |  |
+| **Resize**<br><sub>Percent, width and height, your own presets. Scaling modes and resampling filters.</sub> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> | <img src="Preview/Yes.svg" width="16" height="16" alt="Yes" title="Yes"> |
 
 #### Empty cells are normal:
 
-* AVIF is not compressed losslessly, and removing its color profile is not desirable.<br>
+* AVIF pixels cannot be recompressed losslessly, lossless compression only removes Exif and XMP, the profile stays.<br>
  A palette change makes no sense for AVIF, the file comes out bigger than the source.
 * BMP stores the image uncompressed, lossy BMP makes no sense, converting is better.
 * A palette won't shrink JPEG or AVIF, and compression blurs the colors back into thousands of shades.
 * GIF is limited to 256 colors, so its palette change offers only 64 and 128.
+* TIFF is a storage format, it needs neither lossy compression nor a palette. For the web, convert it.
 
 ## Conversion
 
@@ -61,24 +62,33 @@ Conversion to JPG, PNG and WEBP is in the menu by default.
 | **HEIF** | `.heif` | The same HEIC under another extension |
 | **GIF** | `.gif` | 256 colors with dithering, WEBP animation is kept |
 | **BMP** | `.bmp` | Uncompressed, transparency is filled with white |
+| **TIFF** | `.tif` `.tiff` | Lossless, Zip compression, the profile and transparency are kept |
 
 #### Notes
 
 * HEIC and HEIF with the HEVC codec convert to each other losslessly, only the extension changes.
 * HEIF with another codec, AV1 for example, is encoded to HEIC anew.
 * Converting a GIF or WEBP to a non-animated format keeps only the first frame.
+* A multi-page TIFF converts its first page, CMYK goes to RGB through the profile.
 
 ## More about JPEG
 
-The Exif orientation is respected by every action, a photo never ends up on its side
-* Compression with Exif keeps the tag, the viewer rotates the image
-* Compression without Exif rotates the JPEG losslessly, without re-encoding
-* If it cannot be rotated losslessly, the tag stays in the file
-* Conversion and resizing save the image already rotated
+The Exif orientation is respected by every action, a photo never ends up on its side.
+* Compression with Exif keeps the tag, the viewer rotates the image.
+* Compression without Exif rotates the JPEG losslessly, without re-encoding.
+* If it cannot be rotated losslessly, the tag stays in the file.
+* Conversion and resizing save the image already rotated.
 
-Progressive JPEG is chosen automatically
-* Compression for WEB always saves a progressive JPEG
-* Other compression and conversion to JPEG pick the smaller of two variants
+Progressive JPEG is chosen automatically.
+* Compression for WEB always saves a progressive JPEG.
+* Other compression and conversion to JPEG pick the smaller of two variants.
+
+## More about TIFF
+
+* Compression rewrites all pages losslessly, the file is saved only if it got smaller.
+* Pure black-and-white images without gray shades, such as scanned documents, are also tried with fax compression. It is often several times smaller, the smaller file is kept.
+* Photoshop layers are not lost. Resizing such a file without losing the layers is impossible, it is skipped.
+* Professional TIFFs with special color storage are not supported, such as HDR, scientific and astronomy images, print files in Lab color.
 
 ## Usage
 1. Unpack the archive to any folder, for example `D:\Portable\Moth`
@@ -132,7 +142,8 @@ Everything is already in the archive, in the `Apps` folder:
 * [`gifsicle 1.95`](https://www.lcdf.org/gifsicle/) – GIF: lossless, lossy and WEB compression, squeezes the palette result
 * [`ImageWorsener 1.3.5`](https://entropymine.com/imageworsener/) – BMP: lossless compression
 * [`libheif 1.23.4`](https://github.com/strukturag/libheif) – conversion to HEIC and HEIF, x265 encoder
-* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF and reading HEIC and HEIF
+* [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF, TIFF and reading HEIC and HEIF
+* [`ExifTool 13.59`](https://exiftool.org/) – TIFF: carries Exif, the color profile and Photoshop layers over when compressing. AVIF: removes Exif and XMP
 
 After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 

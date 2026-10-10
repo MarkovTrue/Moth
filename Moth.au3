@@ -859,12 +859,16 @@ Func _CompressFile()
 				$g_iOrientPending = 0
 				; Что умеет формат, решает только таблица команд $gc_aCommands. Анимированный WEBP
 				; сверх неё: cwebp не читает анимацию, сжатие давало случайный пропуск, а палитра -
-				; один первый кадр
+				; один первый кадр. TIFF, который ImageMagick перепишет с потерями, не берёт ни одно
+				; действие (_TiffInfo). Слои Photoshop ресайз не переносит: такой TIFF не уменьшается
 				Local $sDispatch = _CommandId($sActionCommand)
 				If Not _IsFormatSupported($sExtensionFile, $sActionName) Then
 					$sDispatch = 'unsupported'
 				ElseIf $sExtensionFile = $FORMAT_WEBP And _CommandKind($sActionCommand) = 'compress' Then
 					If _WebpIsAnimated($sPathFile) Then $sDispatch = 'unsupported'
+				ElseIf $sExtensionFile = $FORMAT_TIF Or $sExtensionFile = $FORMAT_TIFF Then
+					Local $mTiff = _TiffInfo($sPathFile)
+					If @error Or ($mTiff['layers'] And _CommandKind($sActionCommand) = 'resize') Then $sDispatch = 'unsupported'
 				EndIf
 				Switch $sDispatch
 					Case 'unsupported'
@@ -896,6 +900,8 @@ Func _CompressFile()
 						_ConvertToGif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'toBmp' ; -> bmp
 						_ConvertToBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+					Case 'toTiff' ; -> tiff
+						_ConvertToTiff($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'cq' ; Палитра, cq256
 						_ColorQuantization($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 					Case 'percent' ; percent_50_0
@@ -1711,6 +1717,8 @@ Func _MagickEncodeArgs($sPathFile, $sExtensionFile)
 			Return _JxlKind($sPathFile) = 'lossless' ? ' -quality 100' : ' -quality 90'
 		Case $FORMAT_AVIF
 			Return ' -quality 80'
+		Case $FORMAT_TIF, $FORMAT_TIFF
+			Return ' -compress Zip -quality 95 -define tiff:endian=' & _TiffInfo($sPathFile)['endian']
 	EndSwitch
 	Return ''
 EndFunc   ;==>_MagickEncodeArgs
@@ -1742,8 +1750,8 @@ Func _ConvertToWebp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Local $sPathFileWebp = _GetTempPathFileForCompression('cwebp', $FORMAT_WEBP)
 	Local $sSourceFile = $sPathFile, $sParams = '-lossless'
 
-	; Без потерь из JPEG, PNG, BMP, GIF и JXL без потерь. AVIF, HEIC и JXL с потерями уже
-	; потеряли детали, без потерь из них вышел бы огромный файл: для них качество 90
+	; Без потерь из JPEG, PNG, BMP, GIF, TIFF и JXL без потерь. AVIF, HEIC, TIFF в JPEG и JXL
+	; с потерями уже потеряли детали, без потерь из них вышел бы огромный файл: для них качество 90
 	Switch $sExtensionFile
 		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
 			$sSourceFile = _AutorotateJpg($sPathFile, $sExtensionFile, False, False)
@@ -1755,9 +1763,9 @@ Func _ConvertToWebp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 			$sPathFileWebp = _ConvertRun('magick', '{pathFile} -quiet -define webp:lossless=true {pathFileOut}', $sPathFile, $sPathFileWebp)
 			$sSourceFile = ''
 
-		Case $FORMAT_BMP, $FORMAT_AVIF, $FORMAT_HEIC, $FORMAT_HEIF
+		Case $FORMAT_BMP, $FORMAT_TIF, $FORMAT_TIFF, $FORMAT_AVIF, $FORMAT_HEIC, $FORMAT_HEIF
 			$sSourceFile = _DecodeToPng($sPathFile, $sExtensionFile)
-			If $sExtensionFile <> $FORMAT_BMP Then $sParams = '-q 90'
+			If Not _IsLosslessSource($sPathFile, $sExtensionFile) Then $sParams = '-q 90'
 
 		Case $FORMAT_JXL
 			Switch _JxlKind($sPathFile)
@@ -1817,6 +1825,10 @@ Func _ConvertToJpg($sPathFile, $iFileSize, $sExtensionFile, $sActionName, $sForm
 				_ShowResult($sPathFile, $iFileSize, $iWinnerSize, $bSavedJpeg ? 0 : $STATUS_SAVE_ERROR)
 				Return
 			EndIf
+			$sSourceFile = _DecodeToPng($sPathFile, $sExtensionFile)
+
+		Case $FORMAT_TIF, $FORMAT_TIFF
+			; Иначе каждая страница и слой стали бы отдельным JPEG
 			$sSourceFile = _DecodeToPng($sPathFile, $sExtensionFile)
 
 		Case $FORMAT_GIF, $FORMAT_WEBP
@@ -1983,6 +1995,20 @@ Func _ConvertToBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	EndIf
 	_SaveConverted($sWinnerPath, $sPathFile, $iFileSize, $FORMAT_BMP, $sActionName)
 EndFunc   ;==>_ConvertToBmp
+
+
+; TIFF без потерь, Zip с предиктором, как у сжатия TIFF. Профиль и прозрачность
+; сохраняются, у анимации первый кадр
+Func _ConvertToTiff($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+	Local $sPng = _DecodeToPng($sPathFile, $sExtensionFile)
+	If @error Then
+		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
+		Return
+	EndIf
+	Local $sWinnerPath = _ConvertRun('magick', '{pathFile} -quiet -compress Zip -quality 95 {pathFileOut}', $sPng, _GetTempPathFileForCompression('magick', $FORMAT_TIF))
+	FileDelete($sPng)
+	_SaveConverted($sWinnerPath, $sPathFile, $iFileSize, $FORMAT_TIF, $sActionName)
+EndFunc   ;==>_ConvertToTiff
 
 
 ; Сохраняет результат конвертации рядом с исходником. Конвертация выполняется
@@ -2197,6 +2223,8 @@ EndFunc   ;==>_JpegAddJfifHeader
 ; Утилиты по формату. Формат сюда пускает только таблица команд
 Func _CompressionLossless($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	Switch $sExtensionFile
+		Case $FORMAT_AVIF
+			_CompressionAvif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Case $FORMAT_BMP
 			_CompressionBmp($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Case $FORMAT_GIF
@@ -2209,6 +2237,8 @@ Func _CompressionLossless($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 			_CompressionJxl($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Case $FORMAT_PNG
 			_CompressionPng($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+		Case $FORMAT_TIF, $FORMAT_TIFF
+			_CompressionTiff($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 		Case $FORMAT_WEBP
 			_CompressionWebP($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 	EndSwitch
@@ -2294,6 +2324,19 @@ Func _CompressionJfif($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
 EndFunc   ;==>_CompressionJfif
 
 
+; Пиксели AVIF без потерь не пережать: exiftool убирает только Exif и XMP. Профиль, поворот
+; и карта усиления HDR остаются. Пустые элементы Exif и XMP Chromium и libheif читают.
+; Файл, который exiftool не пишет (испорченный Meta), пропускается
+Func _CompressionAvif($sFilePath, $nOriginalSize, $sExtension, $sAction)
+	Local $sCompressedPath = _ExiftoolRun('-all=', $sFilePath, _GetTempPathFileForCompression('exiftool', $sExtension))
+	If @error Then
+		_ShowResult($sFilePath, $nOriginalSize, 0, $STATUS_SKIPPED)
+		Return
+	EndIf
+	_SaveIfSmaller($sCompressedPath, $sFilePath, $nOriginalSize, $sExtension, $sAction)
+EndFunc   ;==>_CompressionAvif
+
+
 Func _CompressionGif($sFilePath, $nOriginalSize, $sExtension, $sAction)
 	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'gifsicle', _
 			'-w -j --no-conserve-memory -o {pathFile} -O3 --no-comments --no-extensions --no-names {pathFile}')
@@ -2312,6 +2355,67 @@ Func _CompressionPng($sFilePath, $nOriginalSize, $sExtension, $sAction)
 	_CompressionHelper($sFilePath, $nOriginalSize, $sExtension, $sAction, 'pingo', _
 			'-lossless' & ($bSaveExif ? ' -nostrip' : '') & ' {pathFile}')
 EndFunc   ;==>_CompressionPng
+
+
+; TIFF переписывает ImageMagick: Zip с предиктором, все страницы, порядок байт исходника.
+; Чёрно-белый жмёт ещё и Group4, побеждает меньший. Без -strip ImageMagick сам переносит
+; профиль, XMP и IPTC, а поворот и разрешение - теги картинки, они остаются и с -strip.
+; Exif и слои Photoshop (тег 37724) ImageMagick теряет: их возвращает exiftool
+Func _CompressionTiff($sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+	Local $mTiff = _TiffInfo($sPathFile)
+	Local $bSaveExif = _ActionRead($sActionName, 'SaveExif') = 1
+	; Слои ImageMagick читал бы как лишние страницы
+	Local $sRead = '-define tiff:ignore-layers=true {pathFile} -quiet' & ($bSaveExif ? '' : ' -strip')
+	Local $sWrite = ' -define tiff:endian=' & $mTiff['endian'] & ' {pathFileOut}'
+
+	Local $sPath2 = '', $iError2 = 1, $iPid2 = 0
+	If $mTiff['bilevel'] Then
+		$sPath2 = _GetTempPathFileForCompression('magick', $sExtensionFile)
+		$iPid2 = _ConvertStart('magick', $sRead & ' -compress Group4' & $sWrite, $sPathFile, $sPath2)
+		$iError2 = @error
+	EndIf
+	Local $sPath1 = _ConvertRun('magick', $sRead & ($mTiff['type'] = '' ? '' : ' -type ' & $mTiff['type']) & _
+			' -compress Zip -quality 95' & $sWrite, $sPathFile, _GetTempPathFileForCompression('magick', $sExtensionFile))
+	Local $nSize1 = @error ? 0 : FileGetSize($sPath1), $nSize2 = 0
+	If Not $iError2 Then
+		$sPath2 = _CompressionWait('magick', $sPath2, $iPid2)
+		$nSize2 = @error ? 0 : FileGetSize($sPath2)
+	EndIf
+	If $nSize1 = 0 And $nSize2 = 0 Then
+		_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
+		Return
+	EndIf
+
+	Local $sWinnerPath
+	If $nSize2 = 0 Or ($nSize1 > 0 And $nSize1 < $nSize2) Then
+		$sWinnerPath = $sPath1
+		If $nSize2 > 0 Then FileDelete($sPath2)
+	Else
+		$sWinnerPath = $sPath2
+		If $nSize1 > 0 Then FileDelete($sPath1)
+	EndIf
+
+	Local $sTags = ''
+	If $bSaveExif Then
+		$sTags = '-exif:all'
+	ElseIf _IccKeep($sPathFile) Then
+		$sTags = '-ICC_Profile'
+	EndIf
+	If $mTiff['layers'] Then $sTags &= ($sTags = '' ? '' : @LF) & '-ImageSourceData'
+	If $sTags <> '' Then
+		Local $sMeta = _ExiftoolRun('-tagsFromFile' & @LF & $sPathFile & @LF & $sTags, $sWinnerPath, _
+				_GetTempPathFileForCompression('exiftool', $sExtensionFile))
+		Local $iError = @error
+		FileDelete($sWinnerPath)
+		; Результат без слоёв, Exif или профиля хуже исходника: не сохраняется
+		If $iError Then
+			_ShowResult($sPathFile, $iFileSize, 0, $STATUS_APP_ERROR)
+			Return
+		EndIf
+		$sWinnerPath = $sMeta
+	EndIf
+	_SaveIfSmaller($sWinnerPath, $sPathFile, $iFileSize, $sExtensionFile, $sActionName)
+EndFunc   ;==>_CompressionTiff
 
 
 ; Сжатие одной утилитой: результат сохраняется, если вышел меньше
@@ -2551,6 +2655,195 @@ Func _HeifBrands($sPathFile)
 EndFunc   ;==>_HeifBrands
 
 
+; Заголовки TIFF по всем страницам. Map: 'endian' - порядок байт для ImageMagick (lsb, msb),
+; 'type' - общий для страниц -type ImageMagick или '', 'bilevel' - все страницы чёрно-белые
+; в 1 бит, 'layers' - слои Photoshop (тег 37724), 'lossless' - ни одной страницы в JPEG,
+; 'cmyk' - первая страница в CMYK.
+; @error - Moth такой TIFF не берёт: ImageMagick перепишет его с потерями (дробные или знаковые
+; числа, 32 бита, Lab, предумноженная альфа), BigTIFF со слоями (exiftool BigTIFF не пишет),
+; битый заголовок. Ответ помнится, пока файл тот же
+Func _TiffInfo($sPathFile)
+	Local Static $sCacheKey = '', $mCacheInfo = 0, $iCacheError = 0
+	Local $sKey = $sPathFile & '|' & FileGetSize($sPathFile) & '|' & FileGetTime($sPathFile, 0, 1)
+	If $sKey = $sCacheKey Then Return SetError($iCacheError, 0, $mCacheInfo)
+
+	Local $mInfo[]
+	$mInfo['endian'] = 'lsb'
+	$mInfo['type'] = ''
+	$mInfo['bilevel'] = False
+	$mInfo['layers'] = False
+	$mInfo['lossless'] = True
+	$mInfo['cmyk'] = False
+	Local $hFile = FileOpen($sPathFile, $FO_BINARY)
+	Local $iError = 1
+	If $hFile <> -1 Then
+		__TiffScan($hFile, FileGetSize($sPathFile), $mInfo)
+		$iError = @error
+		FileClose($hFile)
+	EndIf
+	If $iError Then _AddLogLine('    TIFF не поддерживается')
+	$sCacheKey = $sKey
+	$mCacheInfo = $mInfo
+	$iCacheError = $iError
+	Return SetError($iError, 0, $mInfo)
+EndFunc   ;==>_TiffInfo
+
+
+; Обход IFD для _TiffInfo, Map заполняется на месте. @error - TIFF не годится
+Func __TiffScan($hFile, $iFileSize, ByRef $mInfo)
+	Local $dHead = FileRead($hFile, 16)
+	If BinaryLen($dHead) < 8 Then Return SetError(1)
+	Local $sOrder = BinaryToString(BinaryMid($dHead, 1, 2))
+	If Not ($sOrder == 'II' Or $sOrder == 'MM') Then Return SetError(1)
+	Local $bMM = $sOrder == 'MM'
+	$mInfo['endian'] = $bMM ? 'msb' : 'lsb'
+
+	; Обычный TIFF: 42 и смещение IFD в 4 байта. BigTIFF: 43, размер смещения 8, 0 и смещение в 8 байт
+	Local $iMagic = __TiffNum($dHead, 3, 2, $bMM), $bBig = ($iMagic = 43), $nIfd
+	If $iMagic = 42 Then
+		$nIfd = __TiffNum($dHead, 5, 4, $bMM)
+	ElseIf $bBig And BinaryLen($dHead) = 16 And __TiffNum($dHead, 5, 2, $bMM) = 8 Then
+		$nIfd = __TiffNum($dHead, 9, 8, $bMM)
+	Else
+		Return SetError(1)
+	EndIf
+
+	; Запись IFD: тег, тип, число значений и значение или смещение к ним
+	Local $iEntrySize = $bBig ? 20 : 12, $iCountSize = $bBig ? 8 : 2, $iNextSize = $bBig ? 8 : 4
+	Local $iPages = 0, $sType = '', $bBilevel = True, $bLayers = False, $bLossless = True
+	Local $dCount, $iCount, $dIfd, $dEntry, $aValues, $sPageType
+	Local $iCompression, $iPhotometric, $iSpp, $bOneBit
+	While $nIfd
+		$iPages += 1
+		; Предел страниц - защита от IFD, который ссылается сам на себя
+		If $iPages > 65536 Or $nIfd < 8 Or $nIfd >= $iFileSize Then Return SetError(1)
+		FileSetPos($hFile, $nIfd, $FILE_BEGIN)
+		$dCount = FileRead($hFile, $iCountSize)
+		If BinaryLen($dCount) < $iCountSize Then Return SetError(1)
+		$iCount = __TiffNum($dCount, 1, $iCountSize, $bMM)
+		If $iCount < 1 Or $iCount > 1024 Then Return SetError(1)
+		$dIfd = FileRead($hFile, $iCount * $iEntrySize + $iNextSize)
+		If BinaryLen($dIfd) < $iCount * $iEntrySize + $iNextSize Then Return SetError(1)
+
+		; Без тега действует значение по умолчанию. Фотометрия обязательна
+		$iCompression = 1
+		$iPhotometric = -1
+		$iSpp = 1
+		$bOneBit = True
+		For $i = 0 To $iCount - 1
+			$dEntry = BinaryMid($dIfd, $i * $iEntrySize + 1, $iEntrySize)
+			Switch __TiffNum($dEntry, 1, 2, $bMM)
+				Case 258 ; BitsPerSample: ImageMagick без потерь пишет только эти
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					For $iBits In $aValues
+						If Not StringRegExp($iBits, '^(?:1|2|4|8|16)$') Then Return SetError(1)
+						If $iBits <> 1 Then $bOneBit = False
+					Next
+				Case 259 ; Compression
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					$iCompression = $aValues[0]
+				Case 262 ; PhotometricInterpretation
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					$iPhotometric = $aValues[0]
+				Case 277 ; SamplesPerPixel
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					$iSpp = $aValues[0]
+				Case 338 ; ExtraSamples: 1 - предумноженная альфа, ImageMagick её разумножает
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					For $iExtra In $aValues
+						If $iExtra = 1 Then Return SetError(1)
+					Next
+				Case 339 ; SampleFormat: только целые без знака
+					$aValues = __TiffValues($hFile, $dEntry, $bMM, $bBig)
+					If @error Then Return SetError(1)
+					For $iFormat In $aValues
+						If $iFormat <> 1 Then Return SetError(1)
+					Next
+				Case 37724 ; ImageSourceData: слои Photoshop
+					$bLayers = True
+			EndSwitch
+		Next
+
+		; Ч/б, оттенки серого, RGB, палитра, CMYK, YCbCr. Lab, LogLuv и маски ImageMagick
+		; читает с потерями или не читает вовсе
+		If Not StringRegExp($iPhotometric, '^[012356]$') Then Return SetError(1)
+		; JPEG в TIFF: старый (6) и нынешний (7)
+		If $iCompression = 6 Or $iCompression = 7 Then $bLossless = False
+		If Not ($iPhotometric <= 1 And $iSpp = 1 And $bOneBit) Then $bBilevel = False
+
+		; -type держит число каналов: без него ImageMagick сводит RGB с серыми пикселями
+		; в оттенки серого. Страницы разного вида -type не получают
+		$sPageType = ''
+		If $iPhotometric = 2 And ($iSpp = 3 Or $iSpp = 4) Then $sPageType = $iSpp = 3 ? 'TrueColor' : 'TrueColorAlpha'
+		If $iPhotometric = 5 And ($iSpp = 4 Or $iSpp = 5) Then $sPageType = $iSpp = 4 ? 'ColorSeparation' : 'ColorSeparationAlpha'
+		If $iPages = 1 Then
+			$mInfo['cmyk'] = ($iPhotometric = 5)
+			$sType = $sPageType
+		ElseIf $sType <> $sPageType Then
+			$sType = ''
+		EndIf
+
+		$nIfd = __TiffNum($dIfd, $iCount * $iEntrySize + 1, $iNextSize, $bMM)
+	WEnd
+	If $iPages = 0 Or ($bBig And $bLayers) Then Return SetError(1)
+
+	$mInfo['type'] = $sType
+	$mInfo['bilevel'] = $bBilevel
+	$mInfo['layers'] = $bLayers
+	$mInfo['lossless'] = $bLossless
+EndFunc   ;==>__TiffScan
+
+
+; Целое без знака из $iLen байт с позиции $iPos (с 1). $bMM - big-endian
+Func __TiffNum($dData, $iPos, $iLen, $bMM)
+	Local $nNum = 0
+	For $i = 0 To $iLen - 1
+		$nNum = $nNum * 256 + Int(BinaryMid($dData, $bMM ? $iPos + $i : $iPos + $iLen - 1 - $i, 1))
+	Next
+	Return $nNum
+EndFunc   ;==>__TiffNum
+
+
+; Числа тега из записи IFD. Влезают в поле значения - лежат прямо в записи, иначе поле -
+; смещение к ним. SetError - тип не целый или значений нет либо слишком много
+Func __TiffValues($hFile, $dEntry, $bMM, $bBig)
+	Local $iSize
+	Switch __TiffNum($dEntry, 3, 2, $bMM)
+		Case 1 ; BYTE
+			$iSize = 1
+		Case 3 ; SHORT
+			$iSize = 2
+		Case 4 ; LONG
+			$iSize = 4
+		Case 16 ; LONG8
+			$iSize = 8
+		Case Else
+			Return SetError(1, 0, 0)
+	EndSwitch
+	Local $iField = $bBig ? 8 : 4
+	Local $iCount = __TiffNum($dEntry, 5, $iField, $bMM)
+	If $iCount < 1 Or $iCount > 1024 Then Return SetError(1, 0, 0)
+	Local $dData
+	If $iCount * $iSize <= $iField Then
+		$dData = BinaryMid($dEntry, 5 + $iField, $iField)
+	Else
+		FileSetPos($hFile, __TiffNum($dEntry, 5 + $iField, $iField, $bMM), $FILE_BEGIN)
+		$dData = FileRead($hFile, $iCount * $iSize)
+		If BinaryLen($dData) < $iCount * $iSize Then Return SetError(1, 0, 0)
+	EndIf
+	Local $aValues[$iCount]
+	For $i = 0 To $iCount - 1
+		$aValues[$i] = __TiffNum($dData, $i * $iSize + 1, $iSize, $bMM)
+	Next
+	Return $aValues
+EndFunc   ;==>__TiffValues
+
+
 ; Исходник без потерь по пикселям: тогда и результат конвертации должен быть без потерь
 Func _IsLosslessSource($sPathFile, $sExtensionFile)
 	Switch $sExtensionFile
@@ -2560,6 +2853,8 @@ Func _IsLosslessSource($sPathFile, $sExtensionFile)
 			Return _WebpIsLossless($sPathFile)
 		Case $FORMAT_JXL
 			Return _JxlKind($sPathFile) = 'lossless'
+		Case $FORMAT_TIF, $FORMAT_TIFF
+			Return _TiffInfo($sPathFile)['lossless']
 	EndSwitch
 	Return False
 EndFunc   ;==>_IsLosslessSource
@@ -2581,6 +2876,11 @@ Func _DecodeToPng($sPathFile, $sExtensionFile)
 		Case $FORMAT_JPG, $FORMAT_JPE, $FORMAT_JPEG, $FORMAT_JFIF
 			; Поворот по Exif прямо по пикселям: декодирование и так уходит от блоков JPEG
 			$sCommand = '{pathFile} -quiet -auto-orient {pathFileOut}'
+		Case $FORMAT_TIF, $FORMAT_TIFF
+			; Первая страница, слои Photoshop не нужны: она и есть их сведённая картинка.
+			; CMYK в RGB переводит профиль: по формуле цвета уходят далеко
+			$sCommand = '-define tiff:ignore-layers=true {pathFile}[0] -quiet -auto-orient' & _
+					(_TiffInfo($sPathFile)['cmyk'] ? ' -profile {sRGB.icc}' : '') & ' {pathFileOut}'
 	EndSwitch
 	Local $sPng = _ConvertRun($sTool, $sCommand, $sSourceFile, _GetTempPathFileForCompression($sTool, $FORMAT_PNG))
 	Return SetError(@error, 0, $sPng)
@@ -2809,22 +3109,38 @@ EndFunc   ;==>_CompressionWait
 
 ; Утилита читает $sPathFile и пишет $sPathFileOut. {sRGB.icc} - профиль sRGB из Apps
 Func _ConvertRun($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
+	Local $iPid = _ConvertStart($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
+	If @error Then Return SetError(2, 0, $sPathFileOut)
+	$sPathFileOut = _CompressionWait($sUtilsName, $sPathFileOut, $iPid)
+	Return SetError(@error, 0, $sPathFileOut)
+EndFunc   ;==>_ConvertRun
+
+
+; Начало _ConvertRun: запуск без ожидания, PID утилиты или @error. Конец - _CompressionWait
+Func _ConvertStart($sUtilsName, $sUtilsKey, $sPathFile, $sPathFileOut)
 	$sUtilsKey = StringReplace($sUtilsKey, '{pathFile}', '"' & $sPathFile & '"', 0)
 	$sUtilsKey = StringReplace($sUtilsKey, '{pathFileOut}', '"' & $sPathFileOut & '"', 0)
 	$sUtilsKey = StringReplace($sUtilsKey, '{sRGB.icc}', '"' & @ScriptDir & '\apps\sRGB.icc"', 0)
 	_AddLogLine('_ConvertRun ' & $sUtilsName & '.exe ' & $sUtilsKey)
 	Local $iPid = _RunUtil($sUtilsName, $sUtilsKey, _GetFileDirPath($sPathFile))
-	If @error Then Return SetError(2, 0, $sPathFileOut)
+	Return SetError(@error, 0, $iPid)
+EndFunc   ;==>_ConvertStart
 
-	_WaitProcess($iPid)
 
-	If Not FileExists($sPathFileOut) Then
-		_AddLogLine('[!] Ошибка ' & $sUtilsName & '.exe, нет итогового файла ' & $sPathFileOut)
-		Return SetError(3, 0, $sPathFileOut)
-	EndIf
-
-	Return $sPathFileOut
-EndFunc   ;==>_ConvertRun
+; exiftool правит метаданные $sPathFile и пишет $sPathFileOut. $sArgs - ключи по одному
+; на строку через @LF. Пути идут через argfile в UTF-8: из командной строки exiftool читает
+; кириллицу кодовой страницей ANSI. Сбой - нет итогового файла, @error
+Func _ExiftoolRun($sArgs, $sPathFile, $sPathFileOut)
+	Local $sArgFile = _GetTempPathFileForCompression('exiftool', 'txt')
+	Local $hFile = FileOpen($sArgFile, $FO_OVERWRITE + $FO_CREATEPATH + $FO_UTF8_NOBOM)
+	If $hFile = -1 Then Return SetError(1, 0, $sPathFileOut)
+	FileWrite($hFile, '-q' & @LF & '-q' & @LF & $sArgs & @LF & '-o' & @LF & $sPathFileOut & @LF & $sPathFile & @LF)
+	FileClose($hFile)
+	$sPathFileOut = _ConvertRun('exiftool', '-charset filename=utf8 -@ "' & $sArgFile & '"', $sPathFile, $sPathFileOut)
+	Local $iError = @error
+	FileDelete($sArgFile)
+	Return SetError($iError, 0, $sPathFileOut)
+EndFunc   ;==>_ExiftoolRun
 
 
 ; Запускает утилиту из Apps и сразу берёт дескриптор её процесса ($g_oUtilProcess): пока
