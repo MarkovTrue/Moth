@@ -73,6 +73,9 @@ Conversion to JPG, PNG and WEBP is in the menu by default.
 
 ## More about JPEG
 
+> [!IMPORTANT]
+> When working with a family archive, we recommend keeping Exif data. It may contain useful contextual information about the photo, such as the capture date and geolocation.
+
 The Exif orientation is respected by every action, a photo never ends up on its side.
 * Compression with Exif keeps the tag, the viewer rotates the image.
 * Compression without Exif rotates the JPEG losslessly, without re-encoding.
@@ -144,8 +147,6 @@ Everything is already in the archive, in the `Apps` folder:
 * [`libheif 1.23.4`](https://github.com/strukturag/libheif) – conversion to HEIC and HEIF, x265 encoder
 * [`ImageMagick 7.1.2-31`](https://imagemagick.org) – conversion, palette, resizing, AVIF, TIFF and reading HEIC and HEIF
 * [`ExifTool 13.59`](https://exiftool.org/) – TIFF: carries Exif, the color profile and Photoshop layers over when compressing. AVIF: removes Exif and XMP
-
-After conversion and palette reduction the result is squeezed by the same tool as in lossless compression.
 
 ## Antivirus
 Moth is written in AutoIt, and some antivirus software may flag the exe files as suspicious.<br>
